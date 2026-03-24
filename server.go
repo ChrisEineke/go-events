@@ -58,8 +58,8 @@ func (server *Server) EventBus() Bus {
 	return server.eventBus
 }
 
-func (server *Server) rpcCallback(subscribeArg *SubscribeArg) func(args ...interface{}) {
-	return func(args ...interface{}) {
+func (server *Server) rpcCallback(subscribeArg *SubscribeArg) func(args ...any) {
+	return func(args ...any) {
 		client, connErr := rpc.DialHTTPPath("tcp", subscribeArg.ClientAddr, subscribeArg.ClientPath)
 		defer client.Close()
 		if connErr != nil {
