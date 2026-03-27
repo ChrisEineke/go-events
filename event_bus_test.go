@@ -147,7 +147,6 @@ func TestSubscribeAsyncTransactional(t *testing.T) {
 
 	bus.Publish("topic", 1, &results, "1s")
 	bus.Publish("topic", 2, &results, "0s")
-
 	bus.WaitAsync()
 
 	if len(results) != 2 {
@@ -173,13 +172,12 @@ func TestSubscribeAsync(t *testing.T) {
 	numResults := 0
 
 	go func() {
-		for _ = range results {
+		for range results {
 			numResults++
 		}
 	}()
 
 	bus.WaitAsync()
-	println(2)
 
 	time.Sleep(10 * time.Millisecond)
 
