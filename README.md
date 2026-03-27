@@ -56,7 +56,7 @@ New returns new EventBus with empty handlers.
 bus := EventBus.New();
 ```
 
-#### Subscribe(topic string, fn interface{}) error
+#### Subscribe(topic string, fn any) error
 Subscribe to a topic. Returns error if `fn` is not a function.
 ```go
 func Handler() { ... }
@@ -64,7 +64,7 @@ func Handler() { ... }
 bus.Subscribe("topic:handler", Handler)
 ```
 
-#### SubscribeOnce(topic string, fn interface{}) error
+#### SubscribeOnce(topic string, fn any) error
 Subscribe to a topic once. Handler will be removed after executing. Returns error if `fn` is not a function.
 ```go
 func HelloWorld() { ... }
@@ -72,7 +72,7 @@ func HelloWorld() { ... }
 bus.SubscribeOnce("topic:handler", HelloWorld)
 ```
 
-#### Unsubscribe(topic string, fn interface{}) error
+#### Unsubscribe(topic string, fn any) error
 Remove callback defined for a topic. Returns error if there are no callbacks subscribed to the topic.
 ```go
 bus.Unsubscribe("topic:handler", HelloWord);
@@ -81,7 +81,7 @@ bus.Unsubscribe("topic:handler", HelloWord);
 #### HasCallback(topic string) bool
 Returns true if exists any callback subscribed to the topic.
 
-#### Publish(topic string, args ...interface{})
+#### Publish(topic string, args ...any)
 Publish executes callback defined for a topic. Any additional argument will be transferred to the callback.
 ```go
 func Handler(str string) { ... }
@@ -91,7 +91,7 @@ bus.Subscribe("topic:handler", Handler)
 bus.Publish("topic:handler", "Hello, World!");
 ```
 
-#### SubscribeAsync(topic string, fn interface{}, transactional bool)
+#### SubscribeAsync(topic string, fn any, transactional bool)
 Subscribe to a topic with an asynchronous callback. Returns error if `fn` is not a function.
 ```go
 func slowCalculator(a, b int) {
@@ -113,7 +113,7 @@ fmt.Println("do some stuff after waiting for result")
 ```
 Transactional determines whether subsequent callbacks for a topic are run serially (true) or concurrently(false)
 
-#### SubscribeOnceAsync(topic string, args ...interface{})
+#### SubscribeOnceAsync(topic string, args ...any)
 SubscribeOnceAsync works like SubscribeOnce except the callback to executed asynchronously
 
 ####  WaitAsync()
