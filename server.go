@@ -9,12 +9,12 @@ import (
 	"sync"
 )
 
-// SubscribeType - how the client intends to subscribe
-type SubscribeType int
+// SubscriptionType - how the client intends to subscribe
+type SubscriptionType int
 
 const (
 	// Subscribe - subscribe to all events
-	Subscribe SubscribeType = iota
+	Subscribe SubscriptionType = iota
 	// SubscribeOnce - subscribe to only one event
 	SubscribeOnce
 )
@@ -26,11 +26,11 @@ const (
 
 // SubscribeArg - object to hold subscribe arguments from remote event handlers
 type SubscribeArg struct {
-	ClientAddr    string
-	ClientPath    string
-	ServiceMethod string
-	SubscribeType SubscribeType
-	Topic         string
+	ClientAddr       string
+	ClientPath       string
+	ServiceMethod    string
+	SubscriptionType SubscriptionType
+	Topic            string
 }
 
 // Server - object capable of being subscribed to by remote handlers
@@ -61,10 +61,10 @@ func (server *Server) EventBus() Bus {
 func (server *Server) rpcCallback(subscribeArg *SubscribeArg) func(args ...any) {
 	return func(args ...any) {
 		client, connErr := rpc.DialHTTPPath("tcp", subscribeArg.ClientAddr, subscribeArg.ClientPath)
-		defer client.Close()
 		if connErr != nil {
 			fmt.Errorf("dialing: %v", connErr)
 		}
+		defer client.Close()
 		clientArg := new(ClientArg)
 		clientArg.Topic = subscribeArg.Topic
 		clientArg.Args = args
@@ -133,11 +133,11 @@ func (service *ServerService) Register(arg *SubscribeArg, success *bool) error {
 	subscribers := service.server.subscribers
 	if !service.server.HasClientSubscribed(arg) {
 		rpcCallback := service.server.rpcCallback(arg)
-		switch arg.SubscribeType {
+		switch arg.SubscriptionType {
 		case Subscribe:
-			service.server.eventBus.Subscribe(arg.Topic, rpcCallback)
+			service.server.eventBus.Topic(arg.Topic).On(rpcCallback)
 		case SubscribeOnce:
-			service.server.eventBus.Subscribe(arg.Topic, rpcCallback, Once())
+			service.server.eventBus.Topic(arg.Topic).On(rpcCallback, Once())
 		}
 		var topicSubscribers []*SubscribeArg
 		if _, ok := subscribers[arg.Topic]; ok {

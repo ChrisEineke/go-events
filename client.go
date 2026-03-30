@@ -43,7 +43,7 @@ func (client *Client) EventBus() Bus {
 	return client.eventBus
 }
 
-func (client *Client) doSubscribe(topic string, fn any, serverAddr, serverPath string, subscribeType SubscribeType) {
+func (client *Client) doSubscribe(topic string, fn any, serverAddr, serverPath string, subscriptionType SubscriptionType) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("Server not found -", r)
@@ -55,24 +55,24 @@ func (client *Client) doSubscribe(topic string, fn any, serverAddr, serverPath s
 	if err != nil {
 		fmt.Errorf("dialing: %v", err)
 	}
-	args := &SubscribeArg{client.address, client.path, PublishService, subscribeType, topic}
+	args := &SubscribeArg{client.address, client.path, PublishService, subscriptionType, topic}
 	reply := new(bool)
 	err = rpcClient.Call(RegisterService, args, reply)
 	if err != nil {
 		fmt.Errorf("Register error: %v", err)
 	}
 	if *reply {
-		client.eventBus.Subscribe(topic, fn)
+		client.eventBus.Topic(topic).On(fn)
 	}
 }
 
-// Subscribe subscribes to a topic in a remote event bus
-func (client *Client) Subscribe(topic string, fn any, serverAddr, serverPath string) {
+// On subscribes to a topic in a remote event bus
+func (client *Client) On(topic string, fn any, serverAddr, serverPath string) {
 	client.doSubscribe(topic, fn, serverAddr, serverPath, Subscribe)
 }
 
-// SubscribeOnce subscribes once to a topic in a remote event bus
-func (client *Client) SubscribeOnce(topic string, fn any, serverAddr, serverPath string) {
+// OnOnce subscribes once to a topic in a remote event bus
+func (client *Client) OnOnce(topic string, fn any, serverAddr, serverPath string) {
 	client.doSubscribe(topic, fn, serverAddr, serverPath, SubscribeOnce)
 }
 
@@ -114,7 +114,7 @@ type ClientService struct {
 
 // PushEvent - exported service to listening to remote events
 func (service *ClientService) PushEvent(arg *ClientArg, reply *bool) error {
-	service.client.eventBus.Publish(arg.Topic, arg.Args...)
+	service.client.eventBus.Topic(arg.Topic).Fire(arg.Args...)
 	*reply = true
 	return nil
 }
