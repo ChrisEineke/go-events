@@ -137,7 +137,7 @@ func (service *ServerService) Register(arg *SubscribeArg, success *bool) error {
 		case Subscribe:
 			service.server.eventBus.Subscribe(arg.Topic, rpcCallback)
 		case SubscribeOnce:
-			service.server.eventBus.SubscribeOnce(arg.Topic, rpcCallback)
+			service.server.eventBus.Subscribe(arg.Topic, rpcCallback, Once())
 		}
 		var topicSubscribers []*SubscribeArg
 		if _, ok := subscribers[arg.Topic]; ok {
