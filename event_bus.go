@@ -7,12 +7,28 @@ import (
 	"sync"
 )
 
-type Bus interface {
+// Publisher defines event publishing-related bus behavior.
+type Publisher interface {
+	Publish(topic string, args ...any)
+}
+
+// Subscriber defines subscription-related bus behavior.
+type Subscriber interface {
 	Subscribe(topic string, callback any, options ...SubscribeOption) error
 	Unsubscribe(topic string, callback any) error
-	Publish(topic string, args ...any)
+}
+
+// BusController defines bus control behavior (checking handler's presence, synchronization).
+type Controller interface {
 	HasCallback(topic string) bool
 	WaitAsync()
+}
+
+// Bus encompasses all bus behaviour.
+type Bus interface {
+	Publisher
+	Subscriber
+	Controller
 }
 
 // EventBus - box for dispatchers and callbacks.
