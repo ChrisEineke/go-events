@@ -36,10 +36,10 @@ func TestSubscribe(t *testing.T) {
 
 func TestSubscribeOnce(t *testing.T) {
 	bus := New()
-	if bus.SubscribeOnce("topic", func() {}) != nil {
+	if bus.Subscribe("topic", func() {}, Once()) != nil {
 		t.Fail()
 	}
-	if bus.SubscribeOnce("topic", "String") == nil {
+	if bus.Subscribe("topic", "String", Once()) == nil {
 		t.Fail()
 	}
 }
@@ -49,12 +49,29 @@ func TestSubscribeOnceAndManySubscribe(t *testing.T) {
 	event := "topic"
 	flag := 0
 	fn := func() { flag += 1 }
-	bus.SubscribeOnce(event, fn)
+	bus.Subscribe(event, fn, Once())
 	bus.Subscribe(event, fn)
 	bus.Subscribe(event, fn)
 	bus.Publish(event)
 
 	if flag != 3 {
+		t.Fail()
+	}
+}
+
+func TestManySubscribeOnce(t *testing.T) {
+	bus := New()
+	event := "topic"
+	var flags [3]byte
+
+	bus.Subscribe(event, func() { flags[0]++ }, Once())
+	bus.Subscribe(event, func() { flags[1]++ }, Once())
+	bus.Subscribe(event, func() { flags[2]++ })
+
+	bus.Publish(event)
+	bus.Publish(event)
+
+	if flags != [3]byte{1, 1, 2} {
 		t.Fail()
 	}
 }
@@ -117,9 +134,9 @@ func TestSubcribeOnceAsync(t *testing.T) {
 	results := make([]int, 0)
 
 	bus := New()
-	bus.SubscribeOnceAsync("topic", func(a int, out *[]int) {
+	bus.Subscribe("topic", func(a int, out *[]int) {
 		*out = append(*out, a)
-	})
+	}, Once(), Async())
 
 	bus.Publish("topic", 10, &results)
 	bus.Publish("topic", 10, &results)
@@ -139,11 +156,11 @@ func TestSubscribeAsyncTransactional(t *testing.T) {
 	results := make([]int, 0)
 
 	bus := New()
-	bus.SubscribeAsync("topic", func(a int, out *[]int, dur string) {
+	bus.Subscribe("topic", func(a int, out *[]int, dur string) {
 		sleep, _ := time.ParseDuration(dur)
 		time.Sleep(sleep)
 		*out = append(*out, a)
-	}, true)
+	}, Async(), Transactional())
 
 	bus.Publish("topic", 1, &results, "1s")
 	bus.Publish("topic", 2, &results, "0s")
@@ -162,9 +179,9 @@ func TestSubscribeAsync(t *testing.T) {
 	results := make(chan int)
 
 	bus := New()
-	bus.SubscribeAsync("topic", func(a int, out chan<- int) {
+	bus.Subscribe("topic", func(a int, out chan<- int) {
 		out <- a
-	}, false)
+	}, Async())
 
 	bus.Publish("topic", 1, results)
 	bus.Publish("topic", 2, results)
@@ -185,4 +202,11 @@ func TestSubscribeAsync(t *testing.T) {
 	//if numResults != 2 {
 	//	t.Fail()
 	//}
+}
+
+func TestCallbackArgsMismatch(t *testing.T) {
+	bus := New()
+	bus.Subscribe("topic", func(a int) {
+	})
+	bus.Publish("topic", 1, 2)
 }

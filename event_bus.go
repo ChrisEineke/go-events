@@ -7,150 +7,180 @@ import (
 	"sync"
 )
 
-// BusSubscriber defines subscription-related bus behavior
-type BusSubscriber interface {
-	Subscribe(topic string, fn any) error
-	SubscribeAsync(topic string, fn any, transactional bool) error
-	SubscribeOnce(topic string, fn any) error
-	SubscribeOnceAsync(topic string, fn any) error
-	Unsubscribe(topic string, handler any) error
-}
-
-// BusPublisher defines publishing-related bus behavior
-type BusPublisher interface {
+type Bus interface {
+	Subscribe(topic string, callback any, options ...SubscribeOption) error
+	Unsubscribe(topic string, callback any) error
 	Publish(topic string, args ...any)
-}
-
-// BusController defines bus control behavior (checking handler's presence, synchronization)
-type BusController interface {
 	HasCallback(topic string) bool
 	WaitAsync()
 }
 
-// Bus englobes global (subscribe, publish, control) bus behavior
-type Bus interface {
-	BusController
-	BusSubscriber
-	BusPublisher
-}
-
-// EventBus - box for handlers and callbacks.
+// EventBus - box for dispatchers and callbacks.
 type EventBus struct {
-	registry map[string]*eventSubscription
+	registry map[string]*subscription
 	lock     sync.RWMutex // a lock for the map
 	wg       sync.WaitGroup
 }
 
-type eventSubscription struct {
-	handlers []*eventHandler
+type subscription struct {
+	dispatchers []*dispatcher
 }
 
-func (es *eventSubscription) hasHandlers() bool {
-	return len(es.handlers) > 0
+func (es *subscription) hasDispatchers() bool {
+	return len(es.dispatchers) > 0
 }
 
-func (es *eventSubscription) addHandler(handler *eventHandler) {
-	es.handlers = append(es.handlers, handler)
+func (es *subscription) addDispatcher(d *dispatcher) {
+	es.dispatchers = append(es.dispatchers, d)
 }
 
-func (es *eventSubscription) removeHandler(callback reflect.Value) error {
-	handlerIdx, _ := es.findHandler(callback)
-	if handlerIdx == -1 {
-		return fmt.Errorf("handler %v not found", callback)
+func (es *subscription) removeDispatcher(callback reflect.Value) error {
+	dispatcherIdx, _ := es.findDispatcher(callback)
+	if dispatcherIdx == -1 {
+		return fmt.Errorf("dispatcher %v not found", callback)
 	}
-	es.removeHandlerIdx(handlerIdx)
+	es.removeDispatcherIdx(dispatcherIdx)
 	return nil
 }
 
-func (es *eventSubscription) findHandler(callback reflect.Value) (int, *eventHandler) {
-	for i, handler := range es.handlers {
-		if handler.callback.Type() == callback.Type() &&
-			handler.callback.Pointer() == callback.Pointer() {
-			return i, handler
+func (es *subscription) findDispatcher(callback reflect.Value) (int, *dispatcher) {
+	for i, dispatcher := range es.dispatchers {
+		if dispatcher.callback.Type() == callback.Type() &&
+			dispatcher.callback.Pointer() == callback.Pointer() {
+			return i, dispatcher
 		}
 	}
 	return -1, nil
 }
 
-func (es *eventSubscription) removeHandlerIdx(idx int) error {
-	numHandlers := len(es.handlers)
+func (es *subscription) removeDispatcherIdx(idx int) error {
+	numDispatchers := len(es.dispatchers)
 
-	if idx < 0 || idx >= numHandlers {
-		return fmt.Errorf("handler index out of range: %v", idx)
+	if idx < 0 || idx >= numDispatchers {
+		return fmt.Errorf("dispatcher index out of range: %v", idx)
 	}
 
-	es.handlers = slices.Delete(es.handlers, idx, 1)
+	es.dispatchers = slices.Delete(es.dispatchers, idx, 1)
 	return nil
 }
 
-type eventHandler struct {
+type dispatcher struct {
 	callback      reflect.Value
-	flagOnce      bool
+	callbackType  reflect.Type
+	callbackArgs  []reflect.Value
+	nilArgs       []reflect.Value
+	once          bool
 	async         bool
 	transactional bool
-	sync.Mutex    // lock for an event handler - useful for running async callbacks serially
+	sync.Mutex    // lock for an event dispatcher - useful for running async callbacks serially
 }
 
-// New returns new EventBus with empty handlers.
+func (d *dispatcher) dispatch(args ...any) {
+	for i := range d.callbackArgs {
+		arg := args[i]
+		if arg == nil {
+			d.callbackArgs[i] = d.nilArgs[i]
+		} else {
+			d.callbackArgs[i] = reflect.ValueOf(arg)
+		}
+	}
+	d.callback.Call(d.callbackArgs)
+}
+
+// New returns a new EventBus with no subscriptions.
 func New() Bus {
 	b := &EventBus{
-		registry: map[string]*eventSubscription{},
+		registry: map[string]*subscription{},
 		lock:     sync.RWMutex{},
 		wg:       sync.WaitGroup{},
 	}
 	return Bus(b)
 }
 
-// doSubscribe handles the subscription logic and is utilized by the public Subscribe functions
-func (bus *EventBus) doSubscribe(topic string, handler *eventHandler) error {
+type SubscribeOption func(*dispatcher)
+
+// Async invokes the callback asynchronously.
+func Async() SubscribeOption {
+	return func(eh *dispatcher) {
+		eh.async = true
+	}
+}
+
+// Once removes the callback after being called once.
+func Once() SubscribeOption {
+	return func(eh *dispatcher) {
+		eh.once = true
+	}
+}
+
+// Transactional determines whether subsequent callbacks for a topic are run serially (true) or concurrently (false).
+func Transactional() SubscribeOption {
+	return func(eh *dispatcher) {
+		eh.transactional = true
+	}
+}
+
+// Subscribe subscribes a callback to a topic with the given subscription options:
+// Returns error if the length of `topic` is 0.
+// Returns error if `callback` is not a function.
+func (bus *EventBus) Subscribe(topic string, callback any, options ...SubscribeOption) error {
+	if len(topic) == 0 {
+		return fmt.Errorf("cannot subscribe to empty topic name")
+	}
+	callbackValue := reflect.ValueOf(callback)
+	if kind := callbackValue.Kind(); kind != reflect.Func {
+		return fmt.Errorf("%s is not of type reflect.Func", kind)
+	}
+	callbackType := callbackValue.Type()
+	nilArgs := make([]reflect.Value, callbackType.NumIn())
+	for i := range callbackType.NumIn() {
+		nilArgs[i] = reflect.New(callbackType.In(i)).Elem()
+	}
+	d := &dispatcher{
+		callback:      callbackValue,
+		callbackType:  callbackType,
+		callbackArgs:  make([]reflect.Value, callbackType.NumIn()),
+		nilArgs:       nilArgs,
+		once:          false,
+		async:         false,
+		transactional: false,
+		Mutex:         sync.Mutex{},
+	}
+	for _, option := range options {
+		option(d)
+	}
+
 	bus.lock.Lock()
 	defer bus.lock.Unlock()
 
-	if kind := handler.callback.Kind(); kind != reflect.Func {
-		return fmt.Errorf("%s is not of type reflect.Func", kind)
-	}
 	es, ok := bus.registry[topic]
 	if ok {
-		es.addHandler(handler)
+		es.addDispatcher(d)
 	} else {
-		bus.registry[topic] = &eventSubscription{[]*eventHandler{handler}}
+		bus.registry[topic] = &subscription{[]*dispatcher{d}}
 	}
 	return nil
 }
 
-// Subscribe subscribes to a topic.
-// Returns error if `fn` is not a function.
-func (bus *EventBus) Subscribe(topic string, fn any) error {
-	return bus.doSubscribe(
-		topic,
-		&eventHandler{reflect.ValueOf(fn), false, false, false, sync.Mutex{}})
-}
+// Unsubscribe removes a callback defined for a topic.
+// Returns error if there are no callbacks subscribed to the topic.
+func (bus *EventBus) Unsubscribe(topic string, callback any) error {
+	bus.lock.Lock()
+	defer bus.lock.Unlock()
 
-// SubscribeAsync subscribes to a topic with an asynchronous callback
-// Transactional determines whether subsequent callbacks for a topic are
-// run serially (true) or concurrently (false)
-// Returns error if `fn` is not a function.
-func (bus *EventBus) SubscribeAsync(topic string, fn any, transactional bool) error {
-	return bus.doSubscribe(
-		topic,
-		&eventHandler{reflect.ValueOf(fn), false, true, transactional, sync.Mutex{}})
-}
-
-// SubscribeOnce subscribes to a topic once. Handler will be removed after executing.
-// Returns error if `fn` is not a function.
-func (bus *EventBus) SubscribeOnce(topic string, fn any) error {
-	return bus.doSubscribe(
-		topic,
-		&eventHandler{reflect.ValueOf(fn), true, false, false, sync.Mutex{}})
-}
-
-// SubscribeOnceAsync subscribes to a topic once with an asynchronous callback
-// Handler will be removed after executing.
-// Returns error if `fn` is not a function.
-func (bus *EventBus) SubscribeOnceAsync(topic string, fn any) error {
-	return bus.doSubscribe(
-		topic,
-		&eventHandler{reflect.ValueOf(fn), true, true, false, sync.Mutex{}})
+	es, ok := bus.registry[topic]
+	if !ok {
+		return fmt.Errorf("topic %s doesn't exist", topic)
+	}
+	if len(es.dispatchers) == 0 {
+		return fmt.Errorf("topic %s doesn't have any dispatchers", topic)
+	}
+	value := reflect.ValueOf(callback)
+	err := es.removeDispatcher(value)
+	if err != nil {
+		return fmt.Errorf("function %v is not subscribed to topic %s %w", callback, topic, err)
+	}
+	return nil
 }
 
 // HasCallback returns true if exists any callback subscribed to the topic.
@@ -159,90 +189,48 @@ func (bus *EventBus) HasCallback(topic string) bool {
 	defer bus.lock.RUnlock()
 
 	if es, ok := bus.registry[topic]; ok {
-		return es.hasHandlers()
+		return es.hasDispatchers()
 	}
 	return false
 }
 
-// Unsubscribe removes callback defined for a topic.
-// Returns error if there are no callbacks subscribed to the topic.
-func (bus *EventBus) Unsubscribe(topic string, handler any) error {
-	bus.lock.Lock()
-	defer bus.lock.Unlock()
-
-	es, ok := bus.registry[topic]
-	if !ok {
-		return fmt.Errorf("topic %s doesn't exist", topic)
-	}
-	if len(es.handlers) == 0 {
-		return fmt.Errorf("topic %s doesn't have any handlers", topic)
-	}
-	callback := reflect.ValueOf(handler)
-	err := es.removeHandler(callback)
-	if err != nil {
-		return fmt.Errorf("handler %v is not subscribed to topic %s %w", callback, topic, err)
-	}
-	return nil
-}
-
-// Publish executes callback defined for a topic. Any additional argument will be transferred to the callback.
+// Publish executes all callback subscribed to a topic. Any additional argument will be transferred to the callback.
 func (bus *EventBus) Publish(topic string, args ...any) {
-	bus.lock.RLock() // will unlock if handler is not found or always after setUpPublish
+	bus.lock.RLock() // will unlock if dispatcher is not found or always after setUpPublish
 	defer bus.lock.RUnlock()
 
 	es, ok := bus.registry[topic]
-	if !ok || !es.hasHandlers() {
+	if !ok || !es.hasDispatchers() {
 		return
 	}
 
-	handlersToRemove := []*eventHandler{}
+	dispatchersToRemove := []*dispatcher{}
 
-	for _, handler := range es.handlers {
-		if handler.flagOnce {
-			handlersToRemove = append(handlersToRemove, handler)
+	for _, dispatcher := range es.dispatchers {
+		if dispatcher.once {
+			dispatchersToRemove = append(dispatchersToRemove, dispatcher)
 		}
-		if !handler.async {
-			bus.doPublish(handler, args...)
+		if !dispatcher.async {
+			dispatcher.dispatch(args...)
 		} else {
 			bus.wg.Add(1)
-			if handler.transactional {
+			if dispatcher.transactional {
 				bus.lock.RUnlock()
-				handler.Lock()
+				dispatcher.Lock()
 				bus.lock.RLock()
 			}
-			go bus.doPublishAsync(handler, args...)
+			go func() {
+				defer bus.wg.Done()
+				if dispatcher.transactional {
+					defer dispatcher.Unlock()
+				}
+				dispatcher.dispatch(args...)
+			}()
 		}
 	}
-	for _, handler := range handlersToRemove {
-		es.removeHandler(handler.callback)
+	for _, dispatcher := range dispatchersToRemove {
+		es.removeDispatcher(dispatcher.callback)
 	}
-}
-
-func (bus *EventBus) doPublish(handler *eventHandler, args ...any) {
-	passedArguments := bus.setUpPublish(handler, args...)
-	handler.callback.Call(passedArguments)
-}
-
-func (bus *EventBus) doPublishAsync(handler *eventHandler, args ...any) {
-	defer bus.wg.Done()
-	if handler.transactional {
-		defer handler.Unlock()
-	}
-	bus.doPublish(handler, args...)
-}
-
-func (bus *EventBus) setUpPublish(callback *eventHandler, args ...any) []reflect.Value {
-	funcType := callback.callback.Type()
-	passedArguments := make([]reflect.Value, len(args))
-	for i, v := range args {
-		if v == nil {
-			passedArguments[i] = reflect.New(funcType.In(i)).Elem()
-		} else {
-			passedArguments[i] = reflect.ValueOf(v)
-		}
-	}
-
-	return passedArguments
 }
 
 // WaitAsync waits for all async callbacks to complete
