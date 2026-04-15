@@ -33,10 +33,10 @@ func TestRegister(t *testing.T) {
 
 	serverBus.service.Register(args, reply)
 
-	if serverBus.eventBus.HasCallback("topic_topic") {
+	if serverBus.eventBus.Topic("topic_topic").Fireable() {
 		t.Fail()
 	}
-	if !serverBus.eventBus.HasCallback("topic") {
+	if !serverBus.eventBus.Topic("topic").Fireable() {
 		t.Fail()
 	}
 }
@@ -56,7 +56,7 @@ func TestPushEvent(t *testing.T) {
 		}
 	}
 
-	clientBus.eventBus.Subscribe("topic", fn)
+	clientBus.eventBus.Topic("topic").On(fn)
 	clientBus.service.PushEvent(clientArg, reply)
 	if !(*reply) {
 		t.Fail()
@@ -76,9 +76,9 @@ func TestServerPublish(t *testing.T) {
 	clientBus := NewClient(":2025", "/_client_bus_b", New())
 	clientBus.Start()
 
-	clientBus.Subscribe("topic", fn, ":2010", "/_server_bus_b")
+	clientBus.On("topic", fn, ":2010", "/_server_bus_b")
 
-	serverBus.EventBus().Publish("topic", 10)
+	serverBus.EventBus().Topic("topic").Fire(10)
 
 	clientBus.Stop()
 	serverBus.Stop()
@@ -96,16 +96,16 @@ func TestNetworkBus(t *testing.T) {
 			t.Fail()
 		}
 	}
-	networkBusA.Subscribe("topic-A", fnA, ":2030", "/_net_bus_B")
-	networkBusB.EventBus().Publish("topic-A", 10)
+	networkBusA.On("topic-A", fnA, ":2030", "/_net_bus_B")
+	networkBusB.EventBus().Topic("topic-A").Fire(10)
 
 	fnB := func(a int) {
 		if a != 20 {
 			t.Fail()
 		}
 	}
-	networkBusB.Subscribe("topic-B", fnB, ":2035", "/_net_bus_A")
-	networkBusA.EventBus().Publish("topic-B", 20)
+	networkBusB.On("topic-B", fnB, ":2035", "/_net_bus_A")
+	networkBusA.EventBus().Topic("topic-B").Fire(20)
 
 	networkBusA.Stop()
 	networkBusB.Stop()
