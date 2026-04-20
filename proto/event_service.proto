@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package protobuf;
+
+option go_package = "github.com/ChrisEineke/EventBus/proto";
+
+import "google/protobuf/any.proto";
+
+service EventService {
+  rpc Subscribe(EventSubscription) returns (stream EventDelivery);
+}
+
+message EventSubscription {
+  string name = 1;
+}
+
+message EventDelivery {
+  repeated google.protobuf.Any args = 1;
+}
