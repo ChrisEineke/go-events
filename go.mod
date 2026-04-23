@@ -1,4 +1,4 @@
-module github.com/ChrisEineke/EventBus
+module github.com/ChrisEineke/go-events
 
 go 1.25.0
 

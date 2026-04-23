@@ -1,10 +1,10 @@
-package EventBus
+package events
 
 import (
 	"encoding/json"
 	"fmt"
 
-	pb "github.com/ChrisEineke/EventBus/proto"
+	pb "github.com/ChrisEineke/go-events/proto"
 	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"

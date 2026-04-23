@@ -1,4 +1,4 @@
-package EventBus
+package events
 
 import (
 	"fmt"

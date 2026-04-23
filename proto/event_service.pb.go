@@ -120,7 +120,7 @@ const file_proto_event_service_proto_rawDesc = "" +
 	"\rEventDelivery\x12(\n" +
 	"\x04args\x18\x01 \x03(\v2\x14.google.protobuf.AnyR\x04args2S\n" +
 	"\fEventService\x12C\n" +
-	"\tSubscribe\x12\x1b.protobuf.EventSubscription\x1a\x17.protobuf.EventDelivery0\x01B'Z%github.com/ChrisEineke/EventBus/protob\x06proto3"
+	"\tSubscribe\x12\x1b.protobuf.EventSubscription\x1a\x17.protobuf.EventDelivery0\x01B(Z&github.com/ChrisEineke/go-events/protob\x06proto3"
 
 var (
 	file_proto_event_service_proto_rawDescOnce sync.Once

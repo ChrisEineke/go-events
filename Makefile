@@ -2,9 +2,17 @@
 .DEFAULT_GOAL := build
 
 clean:
-	@rm -f EventBus.test cpu.pprof mem.pprof
+	@rm -f cpu.pprof mem.pprof
 
-build:
+protoc:
+	@protoc \
+		--go_out=. \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=. \
+		--go-grpc_opt=paths=source_relative \
+		proto/event_service.proto
+
+build: protoc
 	@GOAMD64=v4 go build
 
 test: build

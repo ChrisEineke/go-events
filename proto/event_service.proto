@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package protobuf;
 
-option go_package = "github.com/ChrisEineke/EventBus/proto";
+option go_package = "github.com/ChrisEineke/go-events/proto";
 
 import "google/protobuf/any.proto";
 
