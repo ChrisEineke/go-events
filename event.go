@@ -10,16 +10,16 @@ import (
 
 type Fireable interface {
 	// Fire dispatches the given payload(s) to all subscribed listeners taking into account the modifiers that they were
-	// registered with. If a listener's function signature contains more parameters than provided arguments, zero values
-	// will be filled in. If a listener's function contains less parameters than provided arguments, the listener will
+	// registered with. If a Listener's function signature contains more parameters than provided arguments, zero values
+	// will be filled in. If a Listener's function contains less parameters than provided arguments, the Listener will
 	// be invoked will less arguments.
 	Fire(args ...any)
 	// Fire dispatches the given payload(s) to all subscribed listeners taking into account the modifiers that they were
-	// registered with and the provided deadline. If a listener's function signature contains more parameters than
-	// provided arguments, zero values will be filled in. If a listener's function contains less parameters than
-	// provided arguments, the listener will be invoked will less arguments.
+	// registered with and the provided deadline. If a Listener's function signature contains more parameters than
+	// provided arguments, zero values will be filled in. If a Listener's function contains less parameters than
+	// provided arguments, the Listener will be invoked will less arguments.
 	FireContext(ctx context.Context, args ...any)
-	// HasListeners returns true if at least one listener is registered, false otherwise.
+	// HasListeners returns true if at least one Listener is registered, false otherwise.
 	HasListeners() bool
 	// Use adds the Handlerware to this Event.
 	Use(Handlerware)
@@ -28,10 +28,10 @@ type Fireable interface {
 }
 
 type Subscribable interface {
-	// On registers the given listener with the given modifiers. Returns an error if `listener` is not a function.
-	On(listener any, options ...SubscriptionModifier) error
-	// Off cancels the given listener. Returns an error if `listener` is not subscribed to this topic.
-	Off(listener any) error
+	// On registers the given callable with the given modifiers. Returns an error if the callable is not a function.
+	On(callable any, options ...SubscriptionModifier) error
+	// Off cancels the given callable. Returns an error if the callable is not subscribed to this topic.
+	Off(callable any) error
 }
 
 type Waitable interface {
@@ -45,8 +45,8 @@ type Event struct {
 	Waitable
 
 	N                 EventName
-	listeners         []listener
-	listenersToRemove []listener
+	listeners         []Listener
+	listenersToRemove []Listener
 	handlerwares      []Handlerware
 	lock              sync.RWMutex
 	wg                sync.WaitGroup
@@ -64,7 +64,13 @@ func (e *Event) Fire(args ...any) {
 			e.listenersToRemove = append(e.listenersToRemove, listener)
 		}
 		if !listener.isAsync() {
+			for _, hw := range e.handlerwares {
+				hw.OnPreFire(e, listener, args)
+			}
 			listener.apply(args...)
+			for _, hw := range e.handlerwares {
+				hw.OnPostFire(e, listener, args)
+			}
 		} else {
 			e.wg.Add(1)
 			if listener.isTransactional() {
@@ -77,7 +83,13 @@ func (e *Event) Fire(args ...any) {
 				if listener.isTransactional() {
 					defer listener.Unlock()
 				}
+				for _, hw := range e.handlerwares {
+					hw.OnPreFire(e, listener, args)
+				}
 				listener.apply(args...)
+				for _, hw := range e.handlerwares {
+					hw.OnPostFire(e, listener, args)
+				}
 			}()
 		}
 	}
@@ -94,7 +106,7 @@ func (e *Event) Fire(args ...any) {
 
 func (e *Event) removeListener(l reflect.Value) error {
 	foundOne := false
-	e.listeners = slices.DeleteFunc(e.listeners, func(it listener) bool {
+	e.listeners = slices.DeleteFunc(e.listeners, func(it Listener) bool {
 		if it.getListener().Pointer() == l.Pointer() {
 			if foundOne {
 				return false

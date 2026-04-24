@@ -14,8 +14,8 @@ const (
 	SubscriptionTransactional
 )
 
-// listener abstracts the callback-calling machinery.
-type listener interface {
+// Listener abstracts the callback-calling machinery.
+type Listener interface {
 	sync.Locker
 
 	// apply invokes the callable with the given arguments. This variant of apply tries to match as many arguments of
@@ -36,14 +36,14 @@ type listener interface {
 	setTransactional(bool)
 }
 
-func newListener(callable any, options ...SubscriptionModifier) (listener, error) {
+func newListener(callable any, options ...SubscriptionModifier) (Listener, error) {
 	callableValue := reflect.ValueOf(callable)
 	if kind := callableValue.Kind(); kind != reflect.Func {
 		return nil, fmt.Errorf("%s is not of type reflect.Func", kind)
 	}
 	callableType := callableValue.Type()
 	callableNumIn := callableType.NumIn()
-	var l listener
+	var l Listener
 	switch callableNumIn {
 	case 0:
 		l = &nullaryListener{
@@ -70,7 +70,7 @@ func newListener(callable any, options ...SubscriptionModifier) (listener, error
 	return l, nil
 }
 
-// nullaryListener is a listener that's optimized for callables without any parameters.
+// nullaryListener is a Listener that's optimized for callables without any parameters.
 type nullaryListener struct {
 	callable          reflect.Value
 	mutex             sync.Mutex
@@ -201,46 +201,46 @@ func (l *nAryListener) setTransactional(val bool) {
 	l.subscriptionFlags |= SubscriptionTransactional
 }
 
-type SubscriptionModifier func(listener)
+type SubscriptionModifier func(Listener)
 
-// Sync invokes the listener synchronously (the default).
+// Sync invokes the Listener synchronously (the default).
 func Sync() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setAsync(false)
 	}
 }
 
-// Async invokes the listener asynchronously.
+// Async invokes the Listener asynchronously.
 func Async() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setAsync(true)
 	}
 }
 
-// Always keeps the listener registered after being called (the default).
+// Always keeps the Listener registered after being called (the default).
 func Always() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setOnce(false)
 	}
 }
 
-// Once removes the listener after being called once.
+// Once removes the Listener after being called once.
 func Once() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setOnce(true)
 	}
 }
 
 // NonTransactional invokes subsequent listeners for a topic concurrently (the default).
 func NonTransactional() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setTransactional(false)
 	}
 }
 
 // Transactional invokes subsequent listeners for a topic serially (true).
 func Transactional() SubscriptionModifier {
-	return func(l listener) {
+	return func(l Listener) {
 		l.setTransactional(true)
 	}
 }

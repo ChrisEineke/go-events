@@ -46,8 +46,9 @@ func (g *GrpcWare) OnDisuse(e *Event) error {
 	return err
 }
 
-func (g *GrpcWare) OnAllPreFire(e *Event, args []any) {
-}
+func (g *GrpcWare) OnAllPreFire(e *Event, args []any)           {}
+func (g *GrpcWare) OnPreFire(e *Event, l Listener, args []any)  {}
+func (g *GrpcWare) OnPostFire(e *Event, l Listener, args []any) {}
 
 func (g *GrpcWare) OnAllPostFire(e *Event, args []any) {
 	registration, err := g.registry.Get(e.N)
