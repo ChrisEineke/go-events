@@ -144,6 +144,8 @@ func (l *nAryListener) Unlock() {
 }
 
 func (d *nAryListener) apply(args ...any) {
+	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
+	_ = copy(d.callableArgs, d.nilArgs)
 	d.callableArgs = d.nilArgs
 	for i := range d.callableArgs {
 		if args[i] == nil {
@@ -155,15 +157,17 @@ func (d *nAryListener) apply(args ...any) {
 }
 
 func (d *nAryListener) safeApply(args ...any) error {
-	callableArgsLen := len(d.nilArgs)
-	payloadArgsLen := len(args)
-	if callableArgsLen != payloadArgsLen {
+	if len(d.callableArgs) != len(args) {
 		return fmt.Errorf("length of callable parameter list (%d) doesn't match event payload (%d)",
-			callableArgsLen, payloadArgsLen)
+			len(d.callableArgs), len(args))
 	}
-	d.callableArgs = d.nilArgs
-	for i, arg := range args {
-		d.callableArgs[i] = reflect.ValueOf(arg)
+	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
+	_ = copy(d.callableArgs, d.nilArgs)
+	for i := range args {
+		if args[i] == nil {
+			continue
+		}
+		d.callableArgs[i] = reflect.ValueOf(args[i])
 	}
 	d.callable.Call(d.callableArgs)
 	return nil
