@@ -19,7 +19,7 @@ const (
 
 type GrpcWare struct {
 	Handlerware
-	registry Registry[*grpcRegistration]
+	registry *Registry[*grpcRegistration]
 
 	clients map[string]pb.EventServiceClient
 	server  *grpcServer
@@ -27,7 +27,7 @@ type GrpcWare struct {
 
 func NewGrpcPeer() Handlerware {
 	g := &GrpcWare{
-		registry: Registry[*grpcRegistration]{},
+		registry: NewRegistry[*grpcRegistration](),
 		clients:  make(map[string]pb.EventServiceClient),
 	}
 	grpcServer := &grpcServer{GrpcWare: g}
@@ -46,11 +46,11 @@ func (g *GrpcWare) OnDisuse(e *Event) error {
 	return err
 }
 
-func (g *GrpcWare) OnPreFire(e *Event, args ...any) {
+func (g *GrpcWare) OnAllPreFire(e *Event, args []any) {
 }
 
-func (g *GrpcWare) OnPostFire(e *Event, args ...any) {
-	registration, err := g.registry.Registration(e.N)
+func (g *GrpcWare) OnAllPostFire(e *Event, args []any) {
+	registration, err := g.registry.Get(e.N)
 	if err != nil {
 		return
 	}
@@ -80,7 +80,7 @@ type grpcRegistration struct {
 
 func (g *grpcServer) Subscribe(subscription *pb.EventSubscription, stream grpc.ServerStreamingServer[pb.EventDelivery]) error {
 	eventName := subscription.GetName()
-	grpcRegistration, err := g.registry.Registration(eventName)
+	grpcRegistration, err := g.registry.Get(eventName)
 	if err != nil {
 		return fmt.Errorf("event %s is not known", eventName)
 	}

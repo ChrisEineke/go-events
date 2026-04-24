@@ -29,10 +29,10 @@ func (l *LoggerWare) OnDisuse(e *Event) error {
 	return nil
 }
 
-func (l *LoggerWare) OnPreFire(e *Event, args ...any) {
-	fmt.Fprintf(l.outputStream, "%sOnPreFire: %s: %v\n", l.prefix, e.N, args)
+func (l *LoggerWare) OnAllPreFire(e *Event, args []any) {
+	fmt.Fprintf(l.outputStream, "%sOnAllPreFire: %s: %v\n", l.prefix, e.N, args)
 }
 
-func (l *LoggerWare) OnPostFire(e *Event, args ...any) {
-	fmt.Fprintf(l.outputStream, "%sOnPostFire: %s: %v\n", l.prefix, e.N, args)
+func (l *LoggerWare) OnAllPostFire(e *Event, args []any) {
+	fmt.Fprintf(l.outputStream, "%sOnAllPostFire: %s: %v\n", l.prefix, e.N, args)
 }

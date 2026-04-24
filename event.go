@@ -8,6 +8,36 @@ import (
 	"sync"
 )
 
+type Fireable interface {
+	// Fire dispatches the given payload(s) to all subscribed listeners taking into account the modifiers that they were
+	// registered with. If a listener's function signature contains more parameters than provided arguments, zero values
+	// will be filled in. If a listener's function contains less parameters than provided arguments, the listener will
+	// be invoked will less arguments.
+	Fire(args ...any)
+	// Fire dispatches the given payload(s) to all subscribed listeners taking into account the modifiers that they were
+	// registered with and the provided deadline. If a listener's function signature contains more parameters than
+	// provided arguments, zero values will be filled in. If a listener's function contains less parameters than
+	// provided arguments, the listener will be invoked will less arguments.
+	FireContext(ctx context.Context, args ...any)
+	// HasListeners returns true if at least one listener is registered, false otherwise.
+	HasListeners() bool
+	// Use adds the Handlerware to this Event.
+	Use(Handlerware)
+	// Disuse emoves the Handlerware from this Event.
+	Disuse(Handlerware)
+}
+
+type Subscribable interface {
+	// On registers the given listener with the given modifiers. Returns an error if `listener` is not a function.
+	On(listener any, options ...SubscriptionModifier) error
+	// Off cancels the given listener. Returns an error if `listener` is not subscribed to this topic.
+	Off(listener any) error
+}
+
+type Waitable interface {
+	// WaitAsync waits for all registered async listeners of this Topic to complete.
+	WaitAsync()
+}
 type EventName = string
 
 type Event struct {
@@ -27,7 +57,7 @@ func (e *Event) Fire(args ...any) {
 	defer e.lock.RUnlock()
 
 	for _, hw := range e.handlerwares {
-		hw.OnPreFire(e, args...)
+		hw.OnAllPreFire(e, args)
 	}
 	for _, listener := range e.listeners {
 		if listener.isOnce() {
@@ -58,7 +88,7 @@ func (e *Event) Fire(args ...any) {
 		e.listenersToRemove = e.listenersToRemove[:0]
 	}
 	for _, hw := range e.handlerwares {
-		hw.OnPostFire(e, args...)
+		hw.OnAllPostFire(e, args)
 	}
 }
 

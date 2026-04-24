@@ -69,17 +69,17 @@ func TestEventOnOffFunction(t *testing.T) {
 	assert.Error(t, err)
 }
 
-type handler struct {
+type testHandler struct {
 	val int
 }
 
-func (h *handler) Handle() {
+func (h *testHandler) Handle() {
 	h.val++
 }
 
 func TestEventOnOffReceiver(t *testing.T) {
 	e := &Event{}
-	handler := &handler{val: 0}
+	handler := &testHandler{val: 0}
 
 	e.On(handler.Handle)
 	e.Fire()
