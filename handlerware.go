@@ -9,9 +9,9 @@ type Handlerware interface {
 	// OnAllPreFire will be called before all regular handlers.
 	OnAllPreFire(e *Event, args []any)
 	// OnPreFire will be called before a specific handler is called.
-	OnPreFire(e *Event, l Listener, args []any)
+	OnPreFire(e *Event, h Handler, args []any)
 	// OnPstFire will be called after a specific handler is called.
-	OnPostFire(e *Event, l Listener, args []any)
+	OnPostFire(e *Event, h Handler, args []any)
 	// OnAllPostFire will be called after all regular handlers have been called and the subscription list have been
 	// updated.
 	OnAllPostFire(e *Event, args []any)
@@ -19,9 +19,9 @@ type Handlerware interface {
 
 type Nilware struct{}
 
-func (_ *Nilware) OnUse(e *Event) error                        { return nil }
-func (_ *Nilware) OnDisuse(e *Event) error                     { return nil }
-func (_ *Nilware) OnAllPreFire(e *Event, args []any)           {}
-func (_ *Nilware) OnPreFire(e *Event, l Listener, args []any)  {}
-func (_ *Nilware) OnPostFire(e *Event, l Listener, args []any) {}
-func (_ *Nilware) OnAllPostFire(e *Event, args []any)          {}
+func (_ *Nilware) OnUse(e *Event) error                       { return nil }
+func (_ *Nilware) OnDisuse(e *Event) error                    { return nil }
+func (_ *Nilware) OnAllPreFire(e *Event, args []any)          {}
+func (_ *Nilware) OnPreFire(e *Event, h Handler, args []any)  {}
+func (_ *Nilware) OnPostFire(e *Event, h Handler, args []any) {}
+func (_ *Nilware) OnAllPostFire(e *Event, args []any)         {}

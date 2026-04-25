@@ -14,8 +14,8 @@ const (
 	SubscriptionTransactional
 )
 
-// Listener abstracts the callback-calling machinery.
-type Listener interface {
+// Handler abstracts the callback-calling machinery.
+type Handler interface {
 	sync.Locker
 
 	// apply invokes the callable with the given arguments. This variant of apply tries to match as many arguments of
@@ -26,103 +26,96 @@ type Listener interface {
 	// safeApply invokes the callable with the given arguments.
 	// If the callable's parameter list doesn't match the event payload exactly, it will return an error.
 	safeApply(args ...any) error
-
-	getListener() reflect.Value
+	// getCallable returns the callable Value.
+	getCallable() reflect.Value
+	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
 	isOnce() bool
-	setOnce(bool)
+	// isOnce returns whether or not this Handler is to be invoked asynchronously.
 	isAsync() bool
-	setAsync(bool)
+	// isOnce returns whether or not this Handler is to be invoked transactionally.
 	isTransactional() bool
-	setTransactional(bool)
 }
 
-func newListener(callable any, options ...SubscriptionModifier) (Listener, error) {
+func newHandler(callable any, options ...SubscriptionModifier) (Handler, error) {
 	callableValue := reflect.ValueOf(callable)
 	if kind := callableValue.Kind(); kind != reflect.Func {
 		return nil, fmt.Errorf("%s is not of type reflect.Func", kind)
 	}
 	callableType := callableValue.Type()
 	callableNumIn := callableType.NumIn()
-	var l Listener
+	var h Handler
 	switch callableNumIn {
 	case 0:
-		l = &nullaryListener{
+		nh := &nullaryHandler{
 			callable:          callableValue,
 			mutex:             sync.Mutex{},
 			subscriptionFlags: 0,
 		}
+		for _, option := range options {
+			option(&nh.subscriptionFlags)
+		}
+		h = nh
 	default:
 		nilArgs := make([]reflect.Value, callableNumIn)
 		for i := range callableNumIn {
 			nilArgs[i] = reflect.New(callableType.In(i)).Elem()
 		}
-		l = &nAryListener{
+		nh := &nAryHandler{
 			callable:          callableValue,
 			callableArgs:      make([]reflect.Value, callableNumIn),
 			nilArgs:           nilArgs,
 			mutex:             sync.Mutex{},
 			subscriptionFlags: 0,
 		}
+		for _, option := range options {
+			option(&nh.subscriptionFlags)
+		}
+		h = nh
 	}
-	for _, option := range options {
-		option(l)
-	}
-	return l, nil
+	return h, nil
 }
 
-// nullaryListener is a Listener that's optimized for callables without any parameters.
-type nullaryListener struct {
+// nullaryHandler is a Handler that's optimized for callables without any parameters.
+type nullaryHandler struct {
 	callable          reflect.Value
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
 
-func (l *nullaryListener) Lock() {
-	l.mutex.Lock()
+func (h *nullaryHandler) Lock() {
+	h.mutex.Lock()
 }
 
-func (l *nullaryListener) Unlock() {
-	l.mutex.Unlock()
+func (h *nullaryHandler) Unlock() {
+	h.mutex.Unlock()
 }
 
-func (l *nullaryListener) apply(args ...any) {
-	l.callable.Call(nil)
+func (h *nullaryHandler) apply(args ...any) {
+	h.callable.Call(nil)
 }
 
-func (l *nullaryListener) safeApply(args ...any) error {
-	l.callable.Call(nil)
+func (h *nullaryHandler) safeApply(args ...any) error {
+	h.callable.Call(nil)
 	return nil
 }
 
-func (l *nullaryListener) getListener() reflect.Value {
-	return l.callable
+func (h *nullaryHandler) getCallable() reflect.Value {
+	return h.callable
 }
 
-func (l *nullaryListener) isOnce() bool {
-	return l.subscriptionFlags&SubscriptionOnce == SubscriptionOnce
+func (h *nullaryHandler) isOnce() bool {
+	return h.subscriptionFlags&SubscriptionOnce != 0
 }
 
-func (l *nullaryListener) setOnce(val bool) {
-	l.subscriptionFlags |= SubscriptionOnce
+func (h *nullaryHandler) isAsync() bool {
+	return h.subscriptionFlags&SubscriptionAsync != 0
 }
 
-func (l *nullaryListener) isAsync() bool {
-	return l.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
+func (h *nullaryHandler) isTransactional() bool {
+	return h.subscriptionFlags&SubscriptionTransactional != 0
 }
 
-func (l *nullaryListener) setAsync(val bool) {
-	l.subscriptionFlags |= SubscriptionAsync
-}
-
-func (l *nullaryListener) isTransactional() bool {
-	return l.subscriptionFlags&SubscriptionTransactional == SubscriptionTransactional
-}
-
-func (l *nullaryListener) setTransactional(val bool) {
-	l.subscriptionFlags |= SubscriptionTransactional
-}
-
-type nAryListener struct {
+type nAryHandler struct {
 	callable reflect.Value
 	// callableArgs is the argument list that the callable will be invoked with. This eliminates allocating a new slice
 	// & slice header every time the callable is invoked.
@@ -135,15 +128,15 @@ type nAryListener struct {
 	subscriptionFlags SubscriptionFlag
 }
 
-func (l *nAryListener) Lock() {
-	l.mutex.Lock()
+func (h *nAryHandler) Lock() {
+	h.mutex.Lock()
 }
 
-func (l *nAryListener) Unlock() {
-	l.mutex.Unlock()
+func (h *nAryHandler) Unlock() {
+	h.mutex.Unlock()
 }
 
-func (d *nAryListener) apply(args ...any) {
+func (d *nAryHandler) apply(args ...any) {
 	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
 	_ = copy(d.callableArgs, d.nilArgs)
 	d.callableArgs = d.nilArgs
@@ -156,7 +149,7 @@ func (d *nAryListener) apply(args ...any) {
 	d.callable.Call(d.callableArgs)
 }
 
-func (d *nAryListener) safeApply(args ...any) error {
+func (d *nAryHandler) safeApply(args ...any) error {
 	if len(d.callableArgs) != len(args) {
 		return fmt.Errorf("length of callable parameter list (%d) doesn't match event payload (%d)",
 			len(d.callableArgs), len(args))
@@ -173,74 +166,62 @@ func (d *nAryListener) safeApply(args ...any) error {
 	return nil
 }
 
-func (l *nAryListener) getListener() reflect.Value {
-	return l.callable
+func (h *nAryHandler) getCallable() reflect.Value {
+	return h.callable
 }
 
-func (l *nAryListener) isOnce() bool {
-	return l.subscriptionFlags&SubscriptionOnce == SubscriptionOnce
+func (h *nAryHandler) isOnce() bool {
+	return h.subscriptionFlags&SubscriptionOnce == SubscriptionOnce
 }
 
-func (l *nAryListener) setOnce(val bool) {
-	l.subscriptionFlags |= SubscriptionOnce
+func (h *nAryHandler) isAsync() bool {
+	return h.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
 }
 
-func (l *nAryListener) isAsync() bool {
-	return l.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
+func (h *nAryHandler) isTransactional() bool {
+	return h.subscriptionFlags&SubscriptionTransactional == SubscriptionTransactional
 }
 
-func (l *nAryListener) setAsync(val bool) {
-	l.subscriptionFlags |= SubscriptionAsync
-}
+type SubscriptionModifier func(*SubscriptionFlag)
 
-func (l *nAryListener) isTransactional() bool {
-	return l.subscriptionFlags&SubscriptionTransactional == SubscriptionTransactional
-}
-
-func (l *nAryListener) setTransactional(val bool) {
-	l.subscriptionFlags |= SubscriptionTransactional
-}
-
-type SubscriptionModifier func(Listener)
-
-// Sync invokes the Listener synchronously (the default).
+// Sync invokes the Handler synchronously (the default).
 func Sync() SubscriptionModifier {
-	return func(l Listener) {
-		l.setAsync(false)
+	return func(flags *SubscriptionFlag) {
+		*flags &^= SubscriptionAsync
 	}
 }
 
-// Async invokes the Listener asynchronously.
+// Async invokes the Handler asynchronously.
 func Async() SubscriptionModifier {
-	return func(l Listener) {
-		l.setAsync(true)
+	return func(flags *SubscriptionFlag) {
+		*flags |= SubscriptionAsync
 	}
 }
 
-// Always keeps the Listener registered after being called (the default).
+// Always keeps the Handler registered after being called (the default).
 func Always() SubscriptionModifier {
-	return func(l Listener) {
-		l.setOnce(false)
+	return func(flags *SubscriptionFlag) {
+		*flags &^= SubscriptionOnce
 	}
 }
 
-// Once removes the Listener after being called once.
+// Once removes the Handler after being called once.
 func Once() SubscriptionModifier {
-	return func(l Listener) {
-		l.setOnce(true)
+	return func(flags *SubscriptionFlag) {
+		*flags |= SubscriptionOnce
 	}
 }
 
-// NonTransactional invokes subsequent listeners for a topic concurrently (the default).
+// NonTransactional invokes subsequent handlers concurrently (the default).
 func NonTransactional() SubscriptionModifier {
-	return func(l Listener) {
-		l.setTransactional(false)
+	return func(flags *SubscriptionFlag) {
+		*flags &^= SubscriptionTransactional
 	}
 }
 
-// Transactional invokes subsequent listeners for a topic serially (true).
+// Transactional invokes subsequent handlers serially.
 func Transactional() SubscriptionModifier {
-	return func(l Listener) {
-		l.setTransactional(true)
+	return func(flags *SubscriptionFlag) {
+		*flags |= SubscriptionTransactional
 	}
 }

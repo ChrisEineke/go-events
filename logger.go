@@ -33,12 +33,12 @@ func (l *LoggerWare) OnAllPreFire(e *Event, args []any) {
 	fmt.Fprintf(l.outputStream, "%sOnAllPreFire: %s: %v\n", l.prefix, e.N, args)
 }
 
-func (l *LoggerWare) OnPreFire(e *Event, lst Listener, args []any) {
-	fmt.Fprintf(l.outputStream, "%sOnPreFire: %s: %v: %v\n", l.prefix, e.N, lst, args)
+func (l *LoggerWare) OnPreFire(e *Event, h Handler, args []any) {
+	fmt.Fprintf(l.outputStream, "%sOnPreFire: %s: %v: %v\n", l.prefix, e.N, h, args)
 }
 
-func (l *LoggerWare) OnPostFire(e *Event, lst Listener, args []any) {
-	fmt.Fprintf(l.outputStream, "%sOnPostFire: %s: %v: %v\n", l.prefix, e.N, lst, args)
+func (l *LoggerWare) OnPostFire(e *Event, h Handler, args []any) {
+	fmt.Fprintf(l.outputStream, "%sOnPostFire: %s: %v: %v\n", l.prefix, e.N, h, args)
 }
 
 func (l *LoggerWare) OnAllPostFire(e *Event, args []any) {

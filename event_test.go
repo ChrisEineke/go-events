@@ -13,12 +13,12 @@ func TestEventImplementsInterfaces(t *testing.T) {
 	var _ Waitable = &Event{}
 }
 
-func TestEventHasListeners(t *testing.T) {
+func TestEventHasHandlers(t *testing.T) {
 	e := &Event{}
-	assert.Equal(t, e.HasListeners(), false, "there should be no listeners")
+	assert.Equal(t, e.HasHandlers(), false, "there should be no handlers")
 
 	e.On(func() {})
-	assert.Equal(t, e.HasListeners(), true, "there should be a listeners")
+	assert.Equal(t, e.HasHandlers(), true, "there should be a handlers")
 }
 
 func TestEventOn(t *testing.T) {
@@ -115,7 +115,7 @@ func TestEventOnOnceAsync(t *testing.T) {
 	e.WaitAsync()
 
 	assert.Len(t, results, 1)
-	assert.False(t, e.HasListeners())
+	assert.False(t, e.HasHandlers())
 }
 
 func TestEventOnAsyncTransactional(t *testing.T) {
@@ -157,7 +157,7 @@ func TestEventOnAsync(t *testing.T) {
 	assert.Eventually(t, func() bool { return numResults == 2 }, 1*time.Second, 10*time.Millisecond)
 }
 
-func TestEventListenerArgsMismatch(t *testing.T) {
+func TestEventHandlerArgsMismatch(t *testing.T) {
 	e := &Event{}
 	e.On(func(a int) {
 		assert.Equal(t, 1, a)
