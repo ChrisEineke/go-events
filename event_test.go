@@ -8,21 +8,21 @@ import (
 )
 
 func TestEventImplementsInterfaces(t *testing.T) {
-	var _ Fireable = &Event{}
-	var _ Subscribable = &Event{}
-	var _ Waitable = &Event{}
+	var _ Fireable = &E{}
+	var _ Subscribable = &E{}
+	var _ Waitable = &E{}
 }
 
 func TestEventHasHandlers(t *testing.T) {
-	e := &Event{}
-	assert.Equal(t, e.HasHandlers(), false, "there should be no handlers")
+	e := E{}
+	assert.Equal(t, e.HasHandlers(), false, "there should be no Handlers")
 
 	e.On(func() {})
-	assert.Equal(t, e.HasHandlers(), true, "there should be a handlers")
+	assert.Equal(t, e.HasHandlers(), true, "there should be a Handlers")
 }
 
 func TestEventOn(t *testing.T) {
-	e := &Event{}
+	e := E{}
 
 	err := e.On(func() {})
 	assert.NoError(t, err)
@@ -31,8 +31,125 @@ func TestEventOn(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestEventOff(t *testing.T) {
+	e := E{}
+	callable1 := func() {}
+	callable2 := func() {}
+
+	err := e.On(callable1)
+	assert.NoError(t, err)
+	err = e.On(callable2)
+	assert.NoError(t, err)
+	err = e.On(callable2)
+	assert.NoError(t, err)
+
+	err = e.Off(callable1)
+	assert.NoError(t, err)
+	err = e.Off(callable2)
+	assert.NoError(t, err)
+	err = e.Off(callable2)
+	assert.NoError(t, err)
+
+	err = e.Off(callable1)
+	assert.Error(t, err)
+	err = e.Off(callable2)
+	assert.Error(t, err)
+}
+
+func TestEventFire(t *testing.T) {
+	e := E{}
+	e.On(func(a int, err error) {
+		assert.Equal(t, 10, a)
+		assert.NoError(t, err)
+	})
+	e.Fire(10, nil)
+}
+
+type testware struct {
+	Handlerware
+
+	onUseCalled         int
+	onDisuseCalled      int
+	onSubscribeCalled   int
+	onUnsubscribeCalled int
+	onAllPreFireCalled  int
+	onPreFireCalled     int
+	onPostFireCalled    int
+	onAllPostFireCalled int
+}
+
+func (t *testware) OnUse(*E) error                { t.onUseCalled++; return nil }
+func (t *testware) OnDisuse(*E) error             { t.onDisuseCalled++; return nil }
+func (t *testware) OnSubscribe(*E, Handler)       { t.onSubscribeCalled++ }
+func (t *testware) OnUnsubscribe(*E, Handler)     { t.onUnsubscribeCalled++ }
+func (t *testware) OnAllPreFire(*E, []any)        { t.onAllPreFireCalled++ }
+func (t *testware) OnPreFire(*E, Handler, []any)  { t.onPreFireCalled++ }
+func (t *testware) OnPostFire(*E, Handler, []any) { t.onPostFireCalled++ }
+func (t *testware) OnAllPostFire(*E, []any)       { t.onAllPostFireCalled++ }
+
+func TestEventFireWithHandlerware(t *testing.T) {
+	e := E{}
+	tw := &testware{}
+	callable := func() {}
+
+	e.Use(tw)
+	assert.Equal(t, 1, tw.onUseCalled)
+
+	e.Fire()
+	assert.Equal(t, 1, tw.onAllPreFireCalled, "OnAllPreFire should be called once even if there are no Handlers")
+	assert.Equal(t, 0, tw.onPreFireCalled, "OnPreFire shouldn't be called since there are no Handlers")
+	assert.Equal(t, 0, tw.onPostFireCalled, "OnPostFire shouldn't be called since there are no Handlers")
+	assert.Equal(t, 1, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
+
+	e.On(callable)
+	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every callable attached to the Event")
+
+	e.Fire()
+	assert.Equal(t, 2, tw.onAllPreFireCalled, "OnAllPreFire should be called once even if there are no Handlers")
+	assert.Equal(t, 1, tw.onPreFireCalled, "OnPreFire should be called for every Handler")
+	assert.Equal(t, 1, tw.onPostFireCalled, "OnPostFire should be called for every Handler")
+	assert.Equal(t, 2, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
+
+	e.Off(callable)
+	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every callable detached from the Event")
+
+	e.Disuse(tw)
+	assert.Equal(t, 1, tw.onDisuseCalled)
+}
+
+func TestEventFireAsyncWithHandlerware(t *testing.T) {
+	e := E{}
+	tw := &testware{}
+	callable := func() {}
+
+	e.Use(tw)
+	assert.Equal(t, 1, tw.onUseCalled)
+
+	e.Fire()
+	assert.Equal(t, 1, tw.onAllPreFireCalled, "OnAllPreFire should be called once even if there are no Handlers")
+	assert.Equal(t, 0, tw.onPreFireCalled, "OnPreFire shouldn't be called since there are no Handlers")
+	assert.Equal(t, 0, tw.onPostFireCalled, "OnPostFire shouldn't be called since there are no Handlers")
+	assert.Equal(t, 1, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
+
+	e.On(callable, Async())
+	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every callable attached to the Event")
+
+	e.Fire()
+	e.WaitAsync()
+	assert.Equal(t, 2, tw.onAllPreFireCalled, "OnAllPreFire should be called once even if there are no Handlers")
+	assert.Equal(t, 1, tw.onPreFireCalled, "OnPreFire should be called for every Handler")
+	assert.Equal(t, 1, tw.onPostFireCalled, "OnPostFire should be called for every Handler")
+	assert.Equal(t, 2, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
+
+	e.Off(callable)
+	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every callable detached from the Event")
+
+	e.Disuse(tw)
+	assert.Equal(t, 1, tw.onDisuseCalled)
+}
+
 func TestEventOnOnceAndManyOn(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	flag := 0
 	fn := func() { flag += 1 }
 	e.On(fn, Once())
@@ -44,7 +161,7 @@ func TestEventOnOnceAndManyOn(t *testing.T) {
 }
 
 func TestEventManyOnOnce(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	var flags [3]byte
 
 	e.On(func() { flags[0]++ }, Once())
@@ -58,7 +175,7 @@ func TestEventManyOnOnce(t *testing.T) {
 }
 
 func TestEventOnOffFunction(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	handler := func() {}
 
 	e.On(handler)
@@ -78,7 +195,7 @@ func (h *testHandler) Handle() {
 }
 
 func TestEventOnOffReceiver(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	handler := &testHandler{val: 0}
 
 	e.On(handler.Handle)
@@ -94,17 +211,8 @@ func TestEventOnOffReceiver(t *testing.T) {
 	assert.Equal(t, 1, handler.val, "handler wasn't removed after calling Off")
 }
 
-func TestEventFire(t *testing.T) {
-	e := &Event{}
-	e.On(func(a int, err error) {
-		assert.Equal(t, 10, a)
-		assert.NoError(t, err)
-	})
-	e.Fire(10, nil)
-}
-
 func TestEventOnOnceAsync(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	e.On(func(a int, out *[]int) {
 		*out = append(*out, a)
 	}, Once(), Async())
@@ -119,7 +227,7 @@ func TestEventOnOnceAsync(t *testing.T) {
 }
 
 func TestEventOnAsyncTransactional(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	e.On(func(a int, out *[]int, dur string) {
 		sleep, _ := time.ParseDuration(dur)
 		time.Sleep(sleep)
@@ -137,7 +245,7 @@ func TestEventOnAsyncTransactional(t *testing.T) {
 }
 
 func TestEventOnAsync(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	e.On(func(a int, out chan<- int) {
 		out <- a
 	}, Async())
@@ -158,7 +266,7 @@ func TestEventOnAsync(t *testing.T) {
 }
 
 func TestEventHandlerArgsMismatch(t *testing.T) {
-	e := &Event{}
+	e := E{}
 	e.On(func(a int) {
 		assert.Equal(t, 1, a)
 	})
@@ -166,7 +274,7 @@ func TestEventHandlerArgsMismatch(t *testing.T) {
 }
 
 func BenchmarkEventFireNoArgs(b *testing.B) {
-	e := &Event{}
+	e := E{}
 	timesCalled := 0
 	handler := func() { timesCalled++ }
 	e.On(handler)
@@ -178,7 +286,7 @@ func BenchmarkEventFireNoArgs(b *testing.B) {
 }
 
 func BenchmarkEventFireIntArg(b *testing.B) {
-	e := &Event{}
+	e := E{}
 	timesCalled := 0
 	handler := func(_ int) { timesCalled++ }
 	e.On(handler)
@@ -190,7 +298,7 @@ func BenchmarkEventFireIntArg(b *testing.B) {
 }
 
 func BenchmarkEventFireIntIntArg(b *testing.B) {
-	e := &Event{}
+	e := E{}
 	timesCalled := 0
 	handler := func(_, _ int) { timesCalled++ }
 	e.On(handler)

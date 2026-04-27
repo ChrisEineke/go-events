@@ -40,8 +40,10 @@ type Waitable interface {
 }
 type EventName = string
 
-type Event struct {
+// E is an Event
+type E struct {
 	Fireable
+	Subscribable
 	Waitable
 
 	N                EventName
@@ -52,7 +54,7 @@ type Event struct {
 	wg               sync.WaitGroup
 }
 
-func (e *Event) Fire(args ...any) {
+func (e *E) Fire(args ...any) {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
@@ -104,35 +106,35 @@ func (e *Event) Fire(args ...any) {
 	}
 }
 
-func (e *Event) removeCallable(h reflect.Value) error {
-	foundOne := false
+func (e *E) removeCallable(h reflect.Value) (Handler, error) {
+	var result Handler
 	e.handlers = slices.DeleteFunc(e.handlers, func(it Handler) bool {
 		if it.getCallable().Pointer() == h.Pointer() {
-			if foundOne {
+			if result != nil {
 				return false
 			}
-			foundOne = true
+			result = it
 			return true
 		}
 		return false
 	})
-	if !foundOne {
-		return fmt.Errorf("handler %v not found", h)
+	if result == nil {
+		return nil, fmt.Errorf("handler %v not found", h)
 	}
-	return nil
+	return result, nil
 }
 
-func (e *Event) FireContext(ctx context.Context, args ...any) {
+func (e *E) FireContext(ctx context.Context, args ...any) {
 }
 
-func (e *Event) HasHandlers() bool {
+func (e *E) HasHandlers() bool {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
 	return len(e.handlers) > 0
 }
 
-func (e *Event) Use(hw Handlerware) {
+func (e *E) Use(hw Handlerware) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -140,7 +142,7 @@ func (e *Event) Use(hw Handlerware) {
 	hw.OnUse(e)
 }
 
-func (e *Event) Disuse(hw Handlerware) {
+func (e *E) Disuse(hw Handlerware) {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -160,7 +162,7 @@ func (e *Event) Disuse(hw Handlerware) {
 	}
 }
 
-func (e *Event) On(callable any, options ...SubscriptionModifier) error {
+func (e *E) On(callable any, options ...SubscriptionModifier) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -169,10 +171,13 @@ func (e *Event) On(callable any, options ...SubscriptionModifier) error {
 		return err
 	}
 	e.handlers = append(e.handlers, handler)
+	for _, hw := range e.handlerwares {
+		hw.OnSubscribe(e, handler)
+	}
 	return nil
 }
 
-func (e *Event) Off(callable any) error {
+func (e *E) Off(callable any) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -180,13 +185,16 @@ func (e *Event) Off(callable any) error {
 		return fmt.Errorf("event doesn't have any handlers")
 	}
 	value := reflect.ValueOf(callable)
-	err := e.removeCallable(value)
+	handler, err := e.removeCallable(value)
 	if err != nil {
 		return fmt.Errorf("function %v is not subscribed to event %w", callable, err)
+	}
+	for _, hw := range e.handlerwares {
+		hw.OnUnsubscribe(e, handler)
 	}
 	return nil
 }
 
-func (e *Event) WaitAsync() {
+func (e *E) WaitAsync() {
 	e.wg.Wait()
 }

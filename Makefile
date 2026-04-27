@@ -16,7 +16,10 @@ build: protoc
 	@GOAMD64=v4 go build
 
 test: build
-	@gotestsum
+	@gotestsum -- -coverprofile=coverage.out
+
+coverage:
+	@go tool cover -html=coverage.out
 
 bench: test
 	@go test -bench . -benchtime 3s

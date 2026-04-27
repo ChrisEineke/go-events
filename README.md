@@ -34,7 +34,7 @@ func (p *PocketCalculator) Add(a int, b int) {
 }
 
 type PocketCalculatorOperator struct {
-    OnAddition event.Event
+    OnAddition event.E
 }
 
 func (p *PocketCalculatorOperator) Calculate() {

@@ -6,10 +6,11 @@ import (
 )
 
 type Registration[T any] struct {
-	event *Event
+	event *E
 	data  T
 }
 
+// Registry is a helper for Handlerware. It provides a mapping of EventNameS to Handlerware-specific metadata.
 type Registry[T any] struct {
 	registry     map[EventName]*Registration[T]
 	registryLock sync.RWMutex
@@ -33,7 +34,7 @@ func (r *Registry[T]) Get(name EventName) (*Registration[T], error) {
 	return reg, nil
 }
 
-func (r *Registry[T]) Register(e *Event, data T) error {
+func (r *Registry[T]) Put(e *E, data T) error {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 
@@ -54,7 +55,7 @@ func (r *Registry[T]) Register(e *Event, data T) error {
 	return nil
 }
 
-func (r *Registry[T]) Deregister(e *Event) (T, error) {
+func (r *Registry[T]) Delete(e *E) (T, error) {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 

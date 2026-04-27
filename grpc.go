@@ -35,22 +35,22 @@ func NewGrpcPeer() Handlerware {
 	return g
 }
 
-func (g *GrpcWare) OnUse(e *Event) error {
-	return g.registry.Register(e, &grpcRegistration{
+func (g *GrpcWare) OnUse(e *E) error {
+	return g.registry.Put(e, &grpcRegistration{
 		eventPayload: make(chan []any),
 	})
 }
 
-func (g *GrpcWare) OnDisuse(e *Event) error {
-	_, err := g.registry.Deregister(e)
+func (g *GrpcWare) OnDisuse(e *E) error {
+	_, err := g.registry.Delete(e)
 	return err
 }
 
-func (g *GrpcWare) OnAllPreFire(e *Event, args []any)          {}
-func (g *GrpcWare) OnPreFire(e *Event, h Handler, args []any)  {}
-func (g *GrpcWare) OnPostFire(e *Event, h Handler, args []any) {}
+func (g *GrpcWare) OnAllPreFire(e *E, args []any)          {}
+func (g *GrpcWare) OnPreFire(e *E, h Handler, args []any)  {}
+func (g *GrpcWare) OnPostFire(e *E, h Handler, args []any) {}
 
-func (g *GrpcWare) OnAllPostFire(e *Event, args []any) {
+func (g *GrpcWare) OnAllPostFire(e *E, args []any) {
 	registration, err := g.registry.Get(e.N)
 	if err != nil {
 		return
