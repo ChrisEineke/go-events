@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(*)",
+      "Write(*)",
+      "Edit(*)",
+      "Bash(*)",
+      "Glob(*)",
+      "Grep(*)",
+      "LS(*)"
+    ]
+  }
+}
