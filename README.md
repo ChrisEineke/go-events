@@ -1,6 +1,6 @@
 # go-events
 
-[![GoDoc](https://godoc.org/github.com/ChrisEineke/go-events?status.svg)](https://godoc.org/github.com/ChrisEineke/go-events)
+[![GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events?status.svg)](https://godoc.org/codeberg.org/ChrisEineke/go-events)
 [![Build Status](https://travis-ci.org/ChrisEineke/go-events.svg)](https://travis-ci.org/ChrisEineke/go-events)
 
 ## Summary
@@ -17,12 +17,12 @@
 ## Installation
 Run the following command in your terminal to add the package to your Go project:
 ```
-go get github.com/ChrisEineke/go-events@latest
+go get codeberg.org/ChrisEineke/go-events@latest
 ```
 
 Then add following import statement to your code file(s):
 ```go
-import "github.com/ChrisEineke/go-events"
+import "codeberg.org/ChrisEineke/go-events"
 ```
 
 ## Example
@@ -50,7 +50,7 @@ func main() {
 ```
 
 ## Documentation
-See [GoDoc](https://godoc.org/github.com/ChrisEineke/go-events).
+See [GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events).
 
 ## Special thanks
 * To [Aliaksei Saskevich](https://github.com/asaskevich/EventBus) for the original implementation.

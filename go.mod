@@ -1,4 +1,4 @@
-module github.com/ChrisEineke/go-events
+module codeberg.org/ChrisEineke/go-events
 
 go 1.25.0
 
