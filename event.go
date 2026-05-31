@@ -18,7 +18,7 @@ type Fireable interface {
 	// registered with and the provided deadline. If a Handler's function signature contains more parameters than
 	// provided arguments, zero values will be filled in. If a Handler's function contains less parameters than
 	// provided arguments, the Handler will be invoked will less arguments.
-	FireContext(ctx context.Context, args ...any)
+	FireContext(ctx context.Context, args ...any) error
 	// HasHandlers returns true if at least one Handler is registered, false otherwise.
 	HasHandlers() bool
 	// Use adds the Handlerware to this Event.
@@ -40,7 +40,7 @@ type Waitable interface {
 }
 type EventName = string
 
-// E is an Event
+// E is an Event.
 type E struct {
 	Fireable
 	Subscribable
@@ -124,7 +124,87 @@ func (e *E) removeCallable(h reflect.Value) (Handler, error) {
 	return result, nil
 }
 
-func (e *E) FireContext(ctx context.Context, args ...any) {
+func (e *E) FireContext(ctx context.Context, args ...any) error {
+	e.lock.RLock()
+	defer e.lock.RUnlock()
+
+	for _, hw := range e.handlerwares {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			hw.OnAllPreFire(e, args)
+		}
+	}
+	for _, handler := range e.handlers {
+		if handler.isOnce() {
+			e.handlersToRemove = append(e.handlersToRemove, handler)
+		}
+		if !handler.isAsync() {
+			for _, hw := range e.handlerwares {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					hw.OnPreFire(e, handler, args)
+				}
+			}
+			handler.apply(args...)
+			for _, hw := range e.handlerwares {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					hw.OnPostFire(e, handler, args)
+				}
+			}
+		} else {
+			e.wg.Add(1)
+			if handler.isTransactional() {
+				e.lock.RUnlock()
+				handler.Lock()
+				e.lock.RLock()
+			}
+			go func() {
+				defer e.wg.Done()
+				if handler.isTransactional() {
+					defer handler.Unlock()
+				}
+				for _, hw := range e.handlerwares {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						hw.OnPreFire(e, handler, args)
+					}
+				}
+				handler.apply(args...)
+				for _, hw := range e.handlerwares {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						hw.OnPostFire(e, handler, args)
+					}
+				}
+			}()
+		}
+	}
+	if len(e.handlersToRemove) > 0 {
+		for _, handler := range e.handlersToRemove {
+			e.removeCallable(handler.getCallable())
+		}
+		e.handlersToRemove = e.handlersToRemove[:0]
+	}
+	for _, hw := range e.handlerwares {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			hw.OnAllPostFire(e, args)
+		}
+	}
+	return nil
 }
 
 func (e *E) HasHandlers() bool {
