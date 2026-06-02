@@ -1,6 +1,7 @@
 package events
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -11,29 +12,24 @@ type SubscriptionFlag int
 const (
 	SubscriptionOnce SubscriptionFlag = 1 << iota
 	SubscriptionAsync
-	SubscriptionTransactional
 )
 
 // Handler abstracts the callback-calling machinery.
 type Handler interface {
-	sync.Locker
-
 	// apply invokes the callable with the given arguments. This variant of apply tries to match as many arguments of
 	// the event payload to the parameter list of the callable (in order as fired only). The callable will not be
 	// invoked with more parameters than it supports. If the callable has too many arguments, the remaining parameters
 	// will be invoked with the parameters' zero values.
 	apply(args ...any)
-	// safeApply invokes the callable with the given arguments.
+	// applyContext invokes the callable with the given arguments.
 	// If the callable's parameter list doesn't match the event payload exactly, it will return an error.
-	safeApply(args ...any) error
+	applyContext(ctx context.Context, args ...any) error
 	// getCallable returns the callable Value.
 	getCallable() reflect.Value
 	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
 	isOnce() bool
 	// isOnce returns whether or not this Handler is to be invoked asynchronously.
 	isAsync() bool
-	// isOnce returns whether or not this Handler is to be invoked transactionally.
-	isTransactional() bool
 }
 
 func newHandler(callable any, options ...SubscriptionModifier) (Handler, error) {
@@ -82,19 +78,14 @@ type nullaryHandler struct {
 	subscriptionFlags SubscriptionFlag
 }
 
-func (h *nullaryHandler) Lock() {
-	h.mutex.Lock()
-}
-
-func (h *nullaryHandler) Unlock() {
-	h.mutex.Unlock()
-}
-
 func (h *nullaryHandler) apply(args ...any) {
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	h.callable.Call(nil)
 }
 
-func (h *nullaryHandler) safeApply(args ...any) error {
+func (h *nullaryHandler) applyContext(ctx context.Context, args ...any) error {
 	h.callable.Call(nil)
 	return nil
 }
@@ -111,10 +102,6 @@ func (h *nullaryHandler) isAsync() bool {
 	return h.subscriptionFlags&SubscriptionAsync != 0
 }
 
-func (h *nullaryHandler) isTransactional() bool {
-	return h.subscriptionFlags&SubscriptionTransactional != 0
-}
-
 type nAryHandler struct {
 	callable reflect.Value
 	// callableArgs is the argument list that the callable will be invoked with. This eliminates allocating a new slice
@@ -128,20 +115,14 @@ type nAryHandler struct {
 	subscriptionFlags SubscriptionFlag
 }
 
-func (h *nAryHandler) Lock() {
-	h.mutex.Lock()
-}
-
-func (h *nAryHandler) Unlock() {
-	h.mutex.Unlock()
-}
-
 func (d *nAryHandler) apply(args ...any) {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
 	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
 	_ = copy(d.callableArgs, d.nilArgs)
-	d.callableArgs = d.nilArgs
 	for i := range d.callableArgs {
-		if args[i] == nil {
+		if i >= len(args) || args[i] == nil {
 			continue
 		}
 		d.callableArgs[i] = reflect.ValueOf(args[i])
@@ -149,20 +130,20 @@ func (d *nAryHandler) apply(args ...any) {
 	d.callable.Call(d.callableArgs)
 }
 
-func (d *nAryHandler) safeApply(args ...any) error {
-	if len(d.callableArgs) != len(args) {
-		return fmt.Errorf("length of callable parameter list (%d) doesn't match event payload (%d)",
-			len(d.callableArgs), len(args))
-	}
+func (d *nAryHandler) applyContext(ctx context.Context, args ...any) error {
+	d.mutex.Lock()
+	defer d.mutex.Unlock()
+
 	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
 	_ = copy(d.callableArgs, d.nilArgs)
-	for i := range args {
-		if args[i] == nil {
+	d.callableArgs[0] = reflect.ValueOf(ctx)
+	for i := range d.callableArgs {
+		if i >= len(args) || args[i] == nil {
 			continue
 		}
-		d.callableArgs[i] = reflect.ValueOf(args[i])
+		d.callableArgs[i+1] = reflect.ValueOf(args[i])
 	}
-	d.callable.Call(d.callableArgs)
+	// find error return value and return it
 	return nil
 }
 
@@ -176,10 +157,6 @@ func (h *nAryHandler) isOnce() bool {
 
 func (h *nAryHandler) isAsync() bool {
 	return h.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
-}
-
-func (h *nAryHandler) isTransactional() bool {
-	return h.subscriptionFlags&SubscriptionTransactional == SubscriptionTransactional
 }
 
 type SubscriptionModifier func(*SubscriptionFlag)
@@ -209,19 +186,5 @@ func Always() SubscriptionModifier {
 func Once() SubscriptionModifier {
 	return func(flags *SubscriptionFlag) {
 		*flags |= SubscriptionOnce
-	}
-}
-
-// NonTransactional invokes subsequent handlers concurrently (the default).
-func NonTransactional() SubscriptionModifier {
-	return func(flags *SubscriptionFlag) {
-		*flags &^= SubscriptionTransactional
-	}
-}
-
-// Transactional invokes subsequent handlers serially.
-func Transactional() SubscriptionModifier {
-	return func(flags *SubscriptionFlag) {
-		*flags |= SubscriptionTransactional
 	}
 }

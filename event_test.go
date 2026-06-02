@@ -1,6 +1,8 @@
 package events
 
 import (
+	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -63,6 +65,17 @@ func TestEventFire(t *testing.T) {
 		assert.NoError(t, err)
 	})
 	e.Fire(10, nil)
+}
+
+func TestEventFireContext(t *testing.T) {
+	e := E{}
+	e.On(func(ctx context.Context, a int, err error) {
+		assert.NotNil(t, ctx)
+		assert.NotEmpty(t, ctx)
+		assert.Equal(t, 10, a)
+		assert.NoError(t, err)
+	})
+	e.FireContext(context.Background(), 10, nil)
 }
 
 type testware struct {
@@ -226,24 +239,6 @@ func TestEventOnOnceAsync(t *testing.T) {
 	assert.False(t, e.HasHandlers())
 }
 
-func TestEventOnAsyncTransactional(t *testing.T) {
-	e := E{}
-	e.On(func(a int, out *[]int, dur string) {
-		sleep, _ := time.ParseDuration(dur)
-		time.Sleep(sleep)
-		*out = append(*out, a)
-	}, Async(), Transactional())
-
-	results := make([]int, 0)
-	e.Fire(1, &results, "1s")
-	e.Fire(2, &results, "0s")
-	e.WaitAsync()
-
-	assert.Len(t, results, 2)
-	assert.Equal(t, 1, results[0])
-	assert.Equal(t, 2, results[1])
-}
-
 func TestEventOnAsync(t *testing.T) {
 	e := E{}
 	e.On(func(a int, out chan<- int) {
@@ -254,15 +249,17 @@ func TestEventOnAsync(t *testing.T) {
 	e.Fire(1, results)
 	e.Fire(2, results)
 
-	numResults := 0
+	var numResults int64 = 0
 	go func() {
 		for range results {
-			numResults++
+			atomic.AddInt64(&numResults, 1)
 		}
 	}()
 	e.WaitAsync()
 
-	assert.Eventually(t, func() bool { return numResults == 2 }, 1*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool {
+		return atomic.LoadInt64(&numResults) == 2
+	}, 1*time.Second, 10*time.Millisecond)
 }
 
 func TestEventHandlerArgsMismatch(t *testing.T) {

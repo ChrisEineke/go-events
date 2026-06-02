@@ -4,6 +4,12 @@
 [![Build Status](https://travis-ci.org/ChrisEineke/go-events.svg)](https://travis-ci.org/ChrisEineke/go-events)
 
 ## Summary
+`go-events` lets you implement [Event-Based Programming](https://en.wikipedia.org/wiki/Event-driven_programming) in Go.
+Your components will interact indirectly with event notifications, allowing you to simplify your components ending up in
+better-quality software.
+
+and thus reducing complexity and coupling
+and increasing quality and 
 `go-events` is an event handling library for Go that supports middleware ("handlerware") to extend its functionality.
 
 ## Contribution & Support

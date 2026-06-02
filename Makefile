@@ -2,13 +2,17 @@
 .DEFAULT_GOAL := build
 
 clean:
-	@rm -f cpu.pprof mem.pprof
+	@rm -f cpu.pprof mem.pprof coverage.out
 
 build:
 	@GOAMD64=v4 go build
 
 test: build
-	@gotestsum -- -coverprofile=coverage.out
+	@gotestsum -- -race -coverprofile=coverage.out
+
+vet:
+	@go vet ./...
+
 
 coverage:
 	@go tool cover -html=coverage.out

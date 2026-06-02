@@ -65,7 +65,7 @@ func (e *E) Fire(args ...any) {
 		if handler.isOnce() {
 			e.handlersToRemove = append(e.handlersToRemove, handler)
 		}
-		if !handler.isAsync() {
+		handlerCaller := func() {
 			for _, hw := range e.handlerwares {
 				hw.OnPreFire(e, handler, args)
 			}
@@ -73,26 +73,11 @@ func (e *E) Fire(args ...any) {
 			for _, hw := range e.handlerwares {
 				hw.OnPostFire(e, handler, args)
 			}
+		}
+		if !handler.isAsync() {
+			handlerCaller()
 		} else {
-			e.wg.Add(1)
-			if handler.isTransactional() {
-				e.lock.RUnlock()
-				handler.Lock()
-				e.lock.RLock()
-			}
-			go func() {
-				defer e.wg.Done()
-				if handler.isTransactional() {
-					defer handler.Unlock()
-				}
-				for _, hw := range e.handlerwares {
-					hw.OnPreFire(e, handler, args)
-				}
-				handler.apply(args...)
-				for _, hw := range e.handlerwares {
-					hw.OnPostFire(e, handler, args)
-				}
-			}()
+			e.wg.Go(handlerCaller)
 		}
 	}
 	if len(e.handlersToRemove) > 0 {
@@ -140,54 +125,34 @@ func (e *E) FireContext(ctx context.Context, args ...any) error {
 		if handler.isOnce() {
 			e.handlersToRemove = append(e.handlersToRemove, handler)
 		}
-		if !handler.isAsync() {
+		var err *error
+		handlerCaller := func() {
+		Loop1:
 			for _, hw := range e.handlerwares {
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					*err = ctx.Err()
+					break Loop1
 				default:
 					hw.OnPreFire(e, handler, args)
 				}
 			}
-			handler.apply(args...)
+			handler.applyContext(ctx, args...)
+		Loop2:
 			for _, hw := range e.handlerwares {
 				select {
 				case <-ctx.Done():
-					return ctx.Err()
+					*err = ctx.Err()
+					break Loop2
 				default:
 					hw.OnPostFire(e, handler, args)
 				}
 			}
+		}
+		if !handler.isAsync() {
+			handlerCaller()
 		} else {
-			e.wg.Add(1)
-			if handler.isTransactional() {
-				e.lock.RUnlock()
-				handler.Lock()
-				e.lock.RLock()
-			}
-			go func() {
-				defer e.wg.Done()
-				if handler.isTransactional() {
-					defer handler.Unlock()
-				}
-				for _, hw := range e.handlerwares {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						hw.OnPreFire(e, handler, args)
-					}
-				}
-				handler.apply(args...)
-				for _, hw := range e.handlerwares {
-					select {
-					case <-ctx.Done():
-						return
-					default:
-						hw.OnPostFire(e, handler, args)
-					}
-				}
-			}()
+			e.wg.Go(handlerCaller)
 		}
 	}
 	if len(e.handlersToRemove) > 0 {
