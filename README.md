@@ -8,10 +8,6 @@
 Your components will interact indirectly with event notifications, allowing you to simplify your components ending up in
 better-quality software.
 
-and thus reducing complexity and coupling
-and increasing quality and 
-`go-events` is an event handling library for Go that supports middleware ("handlerware") to extend its functionality.
-
 ## Contribution & Support
 * Contributions produced by humans only.
 * If you have a bugfix, create a pull request.

@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -67,17 +66,6 @@ func TestEventFire(t *testing.T) {
 	e.Fire(10, nil)
 }
 
-func TestEventFireContext(t *testing.T) {
-	e := E{}
-	e.On(func(ctx context.Context, a int, err error) {
-		assert.NotNil(t, ctx)
-		assert.NotEmpty(t, ctx)
-		assert.Equal(t, 10, a)
-		assert.NoError(t, err)
-	})
-	e.FireContext(context.Background(), 10, nil)
-}
-
 type testware struct {
 	Handlerware
 
@@ -91,14 +79,14 @@ type testware struct {
 	onAllPostFireCalled int
 }
 
-func (t *testware) OnUse(*E) error                { t.onUseCalled++; return nil }
-func (t *testware) OnDisuse(*E) error             { t.onDisuseCalled++; return nil }
-func (t *testware) OnSubscribe(*E, Handler)       { t.onSubscribeCalled++ }
-func (t *testware) OnUnsubscribe(*E, Handler)     { t.onUnsubscribeCalled++ }
-func (t *testware) OnAllPreFire(*E, []any)        { t.onAllPreFireCalled++ }
-func (t *testware) OnPreFire(*E, Handler, []any)  { t.onPreFireCalled++ }
-func (t *testware) OnPostFire(*E, Handler, []any) { t.onPostFireCalled++ }
-func (t *testware) OnAllPostFire(*E, []any)       { t.onAllPostFireCalled++ }
+func (t *testware) OnUse(*E) error                      { t.onUseCalled++; return nil }
+func (t *testware) OnDisuse(*E) error                   { t.onDisuseCalled++; return nil }
+func (t *testware) OnSubscribe(*E, Handler) error       { t.onSubscribeCalled++; return nil }
+func (t *testware) OnUnsubscribe(*E, Handler) error     { t.onUnsubscribeCalled++; return nil }
+func (t *testware) OnAllPreFire(*E, []any) error        { t.onAllPreFireCalled++; return nil }
+func (t *testware) OnPreFire(*E, Handler, []any) error  { t.onPreFireCalled++; return nil }
+func (t *testware) OnPostFire(*E, Handler, []any) error { t.onPostFireCalled++; return nil }
+func (t *testware) OnAllPostFire(*E, []any) error       { t.onAllPostFireCalled++; return nil }
 
 func TestEventFireWithHandlerware(t *testing.T) {
 	e := E{}

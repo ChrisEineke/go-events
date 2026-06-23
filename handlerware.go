@@ -7,17 +7,17 @@ type Handlerware interface {
 	OnDisuse(e *E) error
 
 	// OnSubscribe will be called after a hanlder was attached to the Event.
-	OnSubscribe(e *E, h Handler)
+	OnSubscribe(e *E, h Handler) error
 	// OnUnsubscribe will be called after handler was detached from the Event.
-	OnUnsubscribe(e *E, h Handler)
+	OnUnsubscribe(e *E, h Handler) error
 
 	// OnAllPreFire will be called before all regular handlers.
-	OnAllPreFire(e *E, args []any)
+	OnAllPreFire(e *E, args []any) error
 	// OnPreFire will be called before a specific handler is called.
-	OnPreFire(e *E, h Handler, args []any)
-	// OnPstFire will be called after a specific handler is called.
-	OnPostFire(e *E, h Handler, args []any)
+	OnPreFire(e *E, h Handler, args []any) error
+	// OnPostFire will be called after a specific handler is called.
+	OnPostFire(e *E, h Handler, args []any) error
 	// OnAllPostFire will be called after all regular handlers have been called and the subscription list have been
 	// updated.
-	OnAllPostFire(e *E, args []any)
+	OnAllPostFire(e *E, args []any) error
 }

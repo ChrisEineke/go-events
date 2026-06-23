@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNullaryHander(t *testing.T) {
+func TestNullaryHandler(t *testing.T) {
 	callback := func() {}
 
 	h, err := newHandler(callback)

@@ -8,7 +8,7 @@ build:
 	@GOAMD64=v4 go build
 
 test: build
-	@gotestsum -- -race -coverprofile=coverage.out
+	@gotestsum -f standard-verbose -- -race -coverprofile=coverage.out
 
 vet:
 	@go vet ./...

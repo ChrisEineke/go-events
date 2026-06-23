@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"slices"
@@ -13,18 +12,13 @@ type Fireable interface {
 	// registered with. If a Handler's function signature contains more parameters than provided arguments, zero values
 	// will be filled in. If a Handler's function contains less parameters than provided arguments, the Handler will
 	// be invoked will less arguments.
-	Fire(args ...any)
-	// Fire dispatches the given payload(s) to all subscribed handlers taking into account the modifiers that they were
-	// registered with and the provided deadline. If a Handler's function signature contains more parameters than
-	// provided arguments, zero values will be filled in. If a Handler's function contains less parameters than
-	// provided arguments, the Handler will be invoked will less arguments.
-	FireContext(ctx context.Context, args ...any) error
+	Fire(args ...any) error
 	// HasHandlers returns true if at least one Handler is registered, false otherwise.
 	HasHandlers() bool
 	// Use adds the Handlerware to this Event.
-	Use(Handlerware)
+	Use(Handlerware) error
 	// Disuse emoves the Handlerware from this Event.
-	Disuse(Handlerware)
+	Disuse(Handlerware) error
 }
 
 type Subscribable interface {
@@ -42,10 +36,6 @@ type EventName = string
 
 // E is an Event.
 type E struct {
-	Fireable
-	Subscribable
-	Waitable
-
 	N                EventName
 	handlers         []Handler
 	handlersToRemove []Handler
@@ -54,30 +44,41 @@ type E struct {
 	wg               sync.WaitGroup
 }
 
-func (e *E) Fire(args ...any) {
+func (e *E) Fire(args ...any) error {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
 	for _, hw := range e.handlerwares {
-		hw.OnAllPreFire(e, args)
+		if err := hw.OnAllPreFire(e, args); err != nil {
+			return err
+		}
 	}
 	for _, handler := range e.handlers {
 		if handler.isOnce() {
 			e.handlersToRemove = append(e.handlersToRemove, handler)
 		}
-		handlerCaller := func() {
+		if !handler.isAsync() {
 			for _, hw := range e.handlerwares {
-				hw.OnPreFire(e, handler, args)
+				if err := hw.OnPreFire(e, handler, args); err != nil {
+					return err
+				}
 			}
 			handler.apply(args...)
 			for _, hw := range e.handlerwares {
-				hw.OnPostFire(e, handler, args)
+				if err := hw.OnPostFire(e, handler, args); err != nil {
+					return err
+				}
 			}
-		}
-		if !handler.isAsync() {
-			handlerCaller()
 		} else {
-			e.wg.Go(handlerCaller)
+			e.wg.Go(func() {
+				for _, hw := range e.handlerwares {
+					_ = hw.OnPreFire(e, handler, args)
+				}
+				handler.apply(args...)
+				for _, hw := range e.handlerwares {
+					_ = hw.OnPostFire(e, handler, args)
+				}
+			})
 		}
 	}
 	if len(e.handlersToRemove) > 0 {
@@ -87,8 +88,11 @@ func (e *E) Fire(args ...any) {
 		e.handlersToRemove = e.handlersToRemove[:0]
 	}
 	for _, hw := range e.handlerwares {
-		hw.OnAllPostFire(e, args)
+		if err := hw.OnAllPostFire(e, args); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func (e *E) removeCallable(h reflect.Value) (Handler, error) {
@@ -109,69 +113,6 @@ func (e *E) removeCallable(h reflect.Value) (Handler, error) {
 	return result, nil
 }
 
-func (e *E) FireContext(ctx context.Context, args ...any) error {
-	e.lock.RLock()
-	defer e.lock.RUnlock()
-
-	for _, hw := range e.handlerwares {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			hw.OnAllPreFire(e, args)
-		}
-	}
-	for _, handler := range e.handlers {
-		if handler.isOnce() {
-			e.handlersToRemove = append(e.handlersToRemove, handler)
-		}
-		var err *error
-		handlerCaller := func() {
-		Loop1:
-			for _, hw := range e.handlerwares {
-				select {
-				case <-ctx.Done():
-					*err = ctx.Err()
-					break Loop1
-				default:
-					hw.OnPreFire(e, handler, args)
-				}
-			}
-			handler.applyContext(ctx, args...)
-		Loop2:
-			for _, hw := range e.handlerwares {
-				select {
-				case <-ctx.Done():
-					*err = ctx.Err()
-					break Loop2
-				default:
-					hw.OnPostFire(e, handler, args)
-				}
-			}
-		}
-		if !handler.isAsync() {
-			handlerCaller()
-		} else {
-			e.wg.Go(handlerCaller)
-		}
-	}
-	if len(e.handlersToRemove) > 0 {
-		for _, handler := range e.handlersToRemove {
-			e.removeCallable(handler.getCallable())
-		}
-		e.handlersToRemove = e.handlersToRemove[:0]
-	}
-	for _, hw := range e.handlerwares {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			hw.OnAllPostFire(e, args)
-		}
-	}
-	return nil
-}
-
 func (e *E) HasHandlers() bool {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
@@ -179,15 +120,15 @@ func (e *E) HasHandlers() bool {
 	return len(e.handlers) > 0
 }
 
-func (e *E) Use(hw Handlerware) {
+func (e *E) Use(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
 	e.handlerwares = append(e.handlerwares, hw)
-	hw.OnUse(e)
+	return hw.OnUse(e)
 }
 
-func (e *E) Disuse(hw Handlerware) {
+func (e *E) Disuse(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -203,8 +144,9 @@ func (e *E) Disuse(hw Handlerware) {
 		return false
 	})
 	if foundOne {
-		hw.OnDisuse(e)
+		return hw.OnDisuse(e)
 	}
+	return nil
 }
 
 func (e *E) On(callable any, options ...SubscriptionModifier) error {
@@ -217,7 +159,9 @@ func (e *E) On(callable any, options ...SubscriptionModifier) error {
 	}
 	e.handlers = append(e.handlers, handler)
 	for _, hw := range e.handlerwares {
-		hw.OnSubscribe(e, handler)
+		if err := hw.OnSubscribe(e, handler); err != nil {
+			return err
+		}
 	}
 	return nil
 }

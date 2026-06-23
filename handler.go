@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -21,9 +20,6 @@ type Handler interface {
 	// invoked with more parameters than it supports. If the callable has too many arguments, the remaining parameters
 	// will be invoked with the parameters' zero values.
 	apply(args ...any)
-	// applyContext invokes the callable with the given arguments.
-	// If the callable's parameter list doesn't match the event payload exactly, it will return an error.
-	applyContext(ctx context.Context, args ...any) error
 	// getCallable returns the callable Value.
 	getCallable() reflect.Value
 	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
@@ -85,11 +81,6 @@ func (h *nullaryHandler) apply(args ...any) {
 	h.callable.Call(nil)
 }
 
-func (h *nullaryHandler) applyContext(ctx context.Context, args ...any) error {
-	h.callable.Call(nil)
-	return nil
-}
-
 func (h *nullaryHandler) getCallable() reflect.Value {
 	return h.callable
 }
@@ -128,23 +119,6 @@ func (d *nAryHandler) apply(args ...any) {
 		d.callableArgs[i] = reflect.ValueOf(args[i])
 	}
 	d.callable.Call(d.callableArgs)
-}
-
-func (d *nAryHandler) applyContext(ctx context.Context, args ...any) error {
-	d.mutex.Lock()
-	defer d.mutex.Unlock()
-
-	// len(d.callabaleArgs) and len(d.nilArgs) are guaranteed to be the same length.
-	_ = copy(d.callableArgs, d.nilArgs)
-	d.callableArgs[0] = reflect.ValueOf(ctx)
-	for i := range d.callableArgs {
-		if i >= len(args) || args[i] == nil {
-			continue
-		}
-		d.callableArgs[i+1] = reflect.ValueOf(args[i])
-	}
-	// find error return value and return it
-	return nil
 }
 
 func (h *nAryHandler) getCallable() reflect.Value {
