@@ -19,7 +19,7 @@ type Handler interface {
 	// the event payload to the parameter list of the callable (in order as fired only). The callable will not be
 	// invoked with more parameters than it supports. If the callable has too many arguments, the remaining parameters
 	// will be invoked with the parameters' zero values.
-	apply(args ...any)
+	apply(args ...any) error
 	// getCallable returns the callable Value.
 	getCallable() reflect.Value
 	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
@@ -74,11 +74,12 @@ type nullaryHandler struct {
 	subscriptionFlags SubscriptionFlag
 }
 
-func (h *nullaryHandler) apply(args ...any) {
+func (h *nullaryHandler) apply(args ...any) error {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
 	h.callable.Call(nil)
+	return nil
 }
 
 func (h *nullaryHandler) getCallable() reflect.Value {
@@ -106,7 +107,7 @@ type nAryHandler struct {
 	subscriptionFlags SubscriptionFlag
 }
 
-func (d *nAryHandler) apply(args ...any) {
+func (d *nAryHandler) apply(args ...any) error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
@@ -119,6 +120,7 @@ func (d *nAryHandler) apply(args ...any) {
 		d.callableArgs[i] = reflect.ValueOf(args[i])
 	}
 	d.callable.Call(d.callableArgs)
+	return nil
 }
 
 func (h *nAryHandler) getCallable() reflect.Value {

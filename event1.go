@@ -7,12 +7,12 @@ import (
 	"sync"
 )
 
-type Event interface {
+type Event1[T1 any] interface {
 	// Fire dispatches the given payload(s) to all subscribed handlers taking into account the modifiers that they were
 	// registered with. If a Handler's function signature contains more parameters than provided arguments, zero values
 	// will be filled in. If a Handler's function contains less parameters than provided arguments, the Handler will
 	// be invoked will less arguments.
-	Fire(args ...any) error
+	Fire1(arg1 T1) error
 	// HasHandlers returns true if at least one Handler is registered, false otherwise.
 	HasHandlers() bool
 	// Use adds the Handlerware to this Event.
@@ -25,27 +25,23 @@ type Event interface {
 	Off(callable any) error
 	// WaitAsync waits for all registered async handlers of this Event to complete.
 	WaitAsync()
-	// Name returns the name of the Event.
-	Name() EventName
-	// Handlers returns the handlers of the Event.
-	Handlers() []Handler
 }
 
-type EventName = string
-
-// E is an Event.
-type E struct {
+// E1 is a an Event whose HandlerS receive exactly one argument of the Event's generic type.
+type E1[T1 any] struct {
 	N                EventName
-	handlers         []Handler
-	handlersToRemove []Handler
+	handlers         []Handler1[T1]
+	handlersToRemove []Handler1[T1]
 	handlerwares     []Handlerware
 	lock             sync.RWMutex
 	wg               sync.WaitGroup
 }
 
-var _ Event = (*E)(nil)
+func (e *E1[T1]) Fire(args ...any) error {
+	return e.Fire1(args[0].(T1))
+}
 
-func (e *E) Fire(args ...any) error {
+func (e *E1[T1]) Fire1(arg1 T1) error {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
@@ -55,10 +51,10 @@ func (e *E) Fire(args ...any) error {
 				e.handlersToRemove = append(e.handlersToRemove, handler)
 			}
 			if !handler.isAsync() {
-				handler.apply(args...)
+				handler.apply1(arg1)
 			} else {
 				e.wg.Go(func() {
-					handler.apply(args...)
+					handler.apply1(arg1)
 				})
 			}
 		}
@@ -69,6 +65,7 @@ func (e *E) Fire(args ...any) error {
 			e.handlersToRemove = e.handlersToRemove[:0]
 		}
 	} else {
+		args := []any{arg1}
 		for _, hw := range e.handlerwares {
 			if err := hw.OnAllPreFire(e, args); err != nil {
 				return err
@@ -80,24 +77,24 @@ func (e *E) Fire(args ...any) error {
 			}
 			if !handler.isAsync() {
 				for _, hw := range e.handlerwares {
-					if err := hw.OnPreFire(e, handler, args); err != nil {
+					if err := hw.OnPreFire(e, handler.(Handler), args); err != nil {
 						return err
 					}
 				}
-				handler.apply(args...)
+				handler.apply1(arg1)
 				for _, hw := range e.handlerwares {
-					if err := hw.OnPostFire(e, handler, args); err != nil {
+					if err := hw.OnPostFire(e, handler.(Handler), args); err != nil {
 						return err
 					}
 				}
 			} else {
 				e.wg.Go(func() {
 					for _, hw := range e.handlerwares {
-						_ = hw.OnPreFire(e, handler, args)
+						_ = hw.OnPreFire(e, handler.(Handler), args)
 					}
-					handler.apply(args...)
+					handler.apply1(arg1)
 					for _, hw := range e.handlerwares {
-						_ = hw.OnPostFire(e, handler, args)
+						_ = hw.OnPostFire(e, handler.(Handler), args)
 					}
 				})
 			}
@@ -117,9 +114,9 @@ func (e *E) Fire(args ...any) error {
 	return nil
 }
 
-func (e *E) removeCallable(h reflect.Value) (Handler, error) {
-	var result Handler
-	e.handlers = slices.DeleteFunc(e.handlers, func(it Handler) bool {
+func (e *E1[T1]) removeCallable(h reflect.Value) (Handler1[T1], error) {
+	var result Handler1[T1]
+	e.handlers = slices.DeleteFunc(e.handlers, func(it Handler1[T1]) bool {
 		if it.getCallable().Pointer() == h.Pointer() {
 			if result != nil {
 				return false
@@ -135,14 +132,14 @@ func (e *E) removeCallable(h reflect.Value) (Handler, error) {
 	return result, nil
 }
 
-func (e *E) HasHandlers() bool {
+func (e *E1[T1]) HasHandlers() bool {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
 	return len(e.handlers) > 0
 }
 
-func (e *E) Use(hw Handlerware) error {
+func (e *E1[T1]) Use(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -150,7 +147,7 @@ func (e *E) Use(hw Handlerware) error {
 	return hw.OnUse(e)
 }
 
-func (e *E) Disuse(hw Handlerware) error {
+func (e *E1[T1]) Disuse(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -171,24 +168,29 @@ func (e *E) Disuse(hw Handlerware) error {
 	return nil
 }
 
-func (e *E) On(callable any, options ...SubscriptionModifier) error {
+func (e *E1[T1]) On(callable any, options ...SubscriptionModifier) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	handler, err := newHandler(callable, options...)
+	specificCallable, ok := callable.(Callable1[T1])
+	if !ok {
+		return fmt.Errorf("callable %v signature does not match event's generic type list", callable)
+	}
+
+	handler, err := newHandler1(specificCallable, options...)
 	if err != nil {
 		return err
 	}
 	e.handlers = append(e.handlers, handler)
 	for _, hw := range e.handlerwares {
-		if err := hw.OnSubscribe(e, handler); err != nil {
+		if err := hw.OnSubscribe(e, handler.(Handler)); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *E) Off(callable any) error {
+func (e *E1[T1]) Off(callable any) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -201,19 +203,26 @@ func (e *E) Off(callable any) error {
 		return fmt.Errorf("function %v is not subscribed to event %w", callable, err)
 	}
 	for _, hw := range e.handlerwares {
-		hw.OnUnsubscribe(e, handler)
+		hw.OnUnsubscribe(e, handler.(Handler))
 	}
 	return nil
 }
 
-func (e *E) WaitAsync() {
+func (e *E1[T1]) WaitAsync() {
 	e.wg.Wait()
 }
 
-func (e *E) Name() EventName {
+func (e *E1[T1]) Name() EventName {
 	return e.N
 }
 
-func (e *E) Handlers() []Handler {
-	return e.handlers
+func (e *E1[T1]) Handlers() []Handler {
+	var result []Handler
+	for _, handler := range e.handlers {
+		result = append(result, handler.(Handler))
+	}
+	return result
 }
+
+var _ Event1[any] = (*E1[any])(nil)
+var _ Event = (*E1[any])(nil)

@@ -24,9 +24,9 @@ func NewStrictContextWare() *StrictContextWare {
 	return &StrictContextWare{registry: NewRegistry[context.Context]()}
 }
 
-func (s *StrictContextWare) OnUse(e *E) error {
+func (s *StrictContextWare) OnUse(e Event) error {
 	var err error
-	for _, handler := range e.handlers {
+	for _, handler := range e.Handlers() {
 		err = s.ensureCallableFirstArgIsContext(handler.getCallable())
 		if err != nil {
 			break
@@ -35,19 +35,19 @@ func (s *StrictContextWare) OnUse(e *E) error {
 	return err
 }
 
-func (s *StrictContextWare) OnDisuse(e *E) error {
+func (s *StrictContextWare) OnDisuse(e Event) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnSubscribe(e *E, h Handler) error {
+func (s *StrictContextWare) OnSubscribe(e Event, h Handler) error {
 	return s.ensureCallableFirstArgIsContext(h.getCallable())
 }
 
-func (s *StrictContextWare) OnUnsubscribe(e *E, h Handler) error {
+func (s *StrictContextWare) OnUnsubscribe(e Event, h Handler) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnAllPreFire(e *E, args []any) error {
+func (s *StrictContextWare) OnAllPreFire(e Event, args []any) error {
 	if len(args) == 0 {
 		return fmt.Errorf("event payload must contain at least 1 arg (a Context)")
 	}
@@ -58,8 +58,8 @@ func (s *StrictContextWare) OnAllPreFire(e *E, args []any) error {
 	return s.registry.Put(e, c)
 }
 
-func (s *StrictContextWare) OnPreFire(e *E, h Handler, args []any) error {
-	reg, _ := s.registry.Get(e.N)
+func (s *StrictContextWare) OnPreFire(e Event, h Handler, args []any) error {
+	reg, _ := s.registry.Get(e.Name())
 	select {
 	case <-reg.data.Done():
 		return reg.data.Err()
@@ -69,8 +69,8 @@ func (s *StrictContextWare) OnPreFire(e *E, h Handler, args []any) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnPostFire(e *E, h Handler, args []any) error {
-	reg, _ := s.registry.Get(e.N)
+func (s *StrictContextWare) OnPostFire(e Event, h Handler, args []any) error {
+	reg, _ := s.registry.Get(e.Name())
 	select {
 	case <-reg.data.Done():
 		return reg.data.Err()
@@ -80,7 +80,7 @@ func (s *StrictContextWare) OnPostFire(e *E, h Handler, args []any) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnAllPostFire(e *E, args []any) error {
+func (s *StrictContextWare) OnAllPostFire(e Event, args []any) error {
 	_, err := s.registry.Delete(e)
 	return err
 }
@@ -97,3 +97,5 @@ func (s *StrictContextWare) ensureCallableFirstArgIsContext(callable reflect.Val
 	}
 	return nil
 }
+
+var _ Handlerware = (*StrictContextWare)(nil)

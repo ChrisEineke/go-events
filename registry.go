@@ -6,7 +6,7 @@ import (
 )
 
 type Registration[T any] struct {
-	event *E
+	event Event
 	data  T
 }
 
@@ -34,28 +34,28 @@ func (r *Registry[T]) Get(name EventName) (*Registration[T], error) {
 	return reg, nil
 }
 
-func (r *Registry[T]) Put(e *E, data T) error {
+func (r *Registry[T]) Put(e Event, data T) error {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 
 	if e == nil {
 		return fmt.Errorf("event cannot be nil")
 	}
-	if e.N == "" {
+	if e.Name() == "" {
 		return fmt.Errorf("event's name cannot be blank")
 	}
-	if _, ok := r.registry[e.N]; ok {
-		return fmt.Errorf("event %s has already been registered", e.N)
+	if _, ok := r.registry[e.Name()]; ok {
+		return fmt.Errorf("event %s has already been registered", e.Name())
 	}
 	reg := &Registration[T]{
 		event: e,
 		data:  data,
 	}
-	r.registry[e.N] = reg
+	r.registry[e.Name()] = reg
 	return nil
 }
 
-func (r *Registry[T]) Delete(e *E) (T, error) {
+func (r *Registry[T]) Delete(e Event) (T, error) {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 
@@ -64,13 +64,13 @@ func (r *Registry[T]) Delete(e *E) (T, error) {
 	if e == nil {
 		return res, fmt.Errorf("event cannot be nil")
 	}
-	if e.N == "" {
+	if e.Name() == "" {
 		return res, fmt.Errorf("event's name cannot be blank")
 	}
-	reg, ok := r.registry[e.N]
+	reg, ok := r.registry[e.Name()]
 	if !ok {
-		return res, fmt.Errorf("event %s was not registered", e.N)
+		return res, fmt.Errorf("event %s was not registered", e.Name())
 	}
-	delete(r.registry, e.N)
+	delete(r.registry, e.Name())
 	return reg.data, nil
 }
