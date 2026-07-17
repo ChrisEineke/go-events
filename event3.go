@@ -173,12 +173,7 @@ func (e *E3[T1, T2, T3]) On(callable any, options ...SubscriptionModifier) error
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	specificCallable, ok := callable.(Callable3[T1, T2, T3])
-	if !ok {
-		return fmt.Errorf("callable %v signature does not match event's generic type list", callable)
-	}
-
-	handler, err := newHandler3(specificCallable, options...)
+	handler, err := newHandler3[T1, T2, T3](callable, options...)
 	if err != nil {
 		return err
 	}

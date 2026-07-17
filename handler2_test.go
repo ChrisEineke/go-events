@@ -8,12 +8,13 @@ import (
 )
 
 func TestHandler2(t *testing.T) {
-	callback := func(arg1, arg2 int) {
+	callback := func(arg1, arg2 int) error {
 		assert.Equal(t, 1, arg1)
 		assert.Equal(t, 2, arg2)
+		return nil
 	}
 
-	h, err := newHandler2(callback)
+	h, err := newHandler2[int, int](callback)
 	assert.NoError(t, err)
 	assert.IsType(t, &handler2[int, int]{}, h)
 	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.getCallable().Pointer())
