@@ -13,33 +13,46 @@ const (
 	SubscriptionAsync
 )
 
-// Handler abstracts the callback-calling machinery.
+// Handler is the interface shared between generic Handlers (nullaryHandler, etc) and typ-specific Handlers (handler1,
+// etc.).
 type Handler interface {
+	Applicable
+
+	// callable returns this Handler's encapsulated callable Value.
+	callable() reflect.Value
+}
+
+// Applicable abstracts the callback-calling machinery.
+type Applicable interface {
 	// apply invokes the callable with the given arguments. This variant of apply tries to match as many arguments of
 	// the event payload to the parameter list of the callable (in order as fired only). The callable will not be
 	// invoked with more parameters than it supports. If the callable has too many arguments, the remaining parameters
 	// will be invoked with the parameters' zero values.
 	apply(args ...any) error
-	// getCallable returns the callable Value.
-	getCallable() reflect.Value
-	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
-	isOnce() bool
-	// isOnce returns whether or not this Handler is to be invoked asynchronously.
-	isAsync() bool
 }
 
-func newHandler(callable any, options ...SubscriptionModifier) (Handler, error) {
-	callableValue := reflect.ValueOf(callable)
-	if kind := callableValue.Kind(); kind != reflect.Func {
-		return nil, fmt.Errorf("%s is not of type reflect.Func", kind)
+func newHandler(e *E, callable any, options ...SubscriptionModifier) (Handler, error) {
+	call := reflect.ValueOf(callable)
+	if kind := call.Kind(); kind != reflect.Func {
+		return nil, fmt.Errorf("%s: %s is not of type reflect.Func", call, kind)
 	}
-	callableType := callableValue.Type()
+	callableType := call.Type()
+
+	if callableNumOut := callableType.NumOut(); callableNumOut != 1 {
+		return nil, fmt.Errorf("%s: must return exactly one value: %d", call, callableNumOut)
+	}
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if !callableType.Out(0).Implements(errorType) {
+		return nil, fmt.Errorf("%s: must return exactly one value of type error: %s", call, callableType.Out(0))
+	}
+
 	callableNumIn := callableType.NumIn()
 	var h Handler
 	switch callableNumIn {
 	case 0:
 		nh := &nullaryHandler{
-			callable:          callableValue,
+			event:             e,
+			call:              call,
 			mutex:             sync.Mutex{},
 			subscriptionFlags: 0,
 		}
@@ -53,7 +66,8 @@ func newHandler(callable any, options ...SubscriptionModifier) (Handler, error) 
 			nilArgs[i] = reflect.New(callableType.In(i)).Elem()
 		}
 		nh := &nAryHandler{
-			callable:          callableValue,
+			event:             e,
+			call:              call,
 			callableArgs:      make([]reflect.Value, callableNumIn),
 			nilArgs:           nilArgs,
 			mutex:             sync.Mutex{},
@@ -67,9 +81,10 @@ func newHandler(callable any, options ...SubscriptionModifier) (Handler, error) 
 	return h, nil
 }
 
-// nullaryHandler is a Handler that's optimized for callables without any parameters.
+// nullaryHandler is a Handler that is optimized for callables without any parameters.
 type nullaryHandler struct {
-	callable          reflect.Value
+	event             *E
+	call              reflect.Value
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -78,24 +93,49 @@ func (h *nullaryHandler) apply(args ...any) error {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	h.callable.Call(nil)
+	isOnce := h.subscriptionFlags&SubscriptionOnce != 0
+	isAsync := h.subscriptionFlags&SubscriptionAsync != 0
+
+	if isOnce {
+		h.event.handlersToRemove = append(h.event.handlersToRemove, h)
+	}
+	if len(h.event.handlerwares) == 0 {
+		if isAsync {
+			h.event.wg.Go(func() {
+				h.call.Call(nil)
+			})
+		} else {
+			h.call.Call(nil)
+		}
+	} else {
+		for _, hw := range h.event.handlerwares {
+			if err := hw.OnPreFire(h.event, h, args...); err != nil {
+				return err
+			}
+		}
+		if isAsync {
+			h.event.wg.Go(func() {
+				h.call.Call(nil)
+			})
+		} else {
+			h.call.Call(nil)
+		}
+		for _, hw := range h.event.handlerwares {
+			if err := hw.OnPostFire(h.event, h, args...); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
-func (h *nullaryHandler) getCallable() reflect.Value {
-	return h.callable
-}
-
-func (h *nullaryHandler) isOnce() bool {
-	return h.subscriptionFlags&SubscriptionOnce != 0
-}
-
-func (h *nullaryHandler) isAsync() bool {
-	return h.subscriptionFlags&SubscriptionAsync != 0
+func (h *nullaryHandler) callable() reflect.Value {
+	return h.call
 }
 
 type nAryHandler struct {
-	callable reflect.Value
+	event *E
+	call  reflect.Value
 	// callableArgs is the argument list that the callable will be invoked with. This eliminates allocating a new slice
 	// & slice header every time the callable is invoked.
 	callableArgs []reflect.Value
@@ -119,20 +159,45 @@ func (d *nAryHandler) apply(args ...any) error {
 		}
 		d.callableArgs[i] = reflect.ValueOf(args[i])
 	}
-	d.callable.Call(d.callableArgs)
+
+	isOnce := d.subscriptionFlags&SubscriptionOnce != 0
+	isAsync := d.subscriptionFlags&SubscriptionAsync != 0
+
+	if isOnce {
+		d.event.handlersToRemove = append(d.event.handlersToRemove, d)
+	}
+	if len(d.event.handlerwares) == 0 {
+		if isAsync {
+			d.event.wg.Go(func() {
+				d.call.Call(d.callableArgs)
+			})
+		} else {
+			d.call.Call(d.callableArgs)
+		}
+	} else {
+		for _, hw := range d.event.handlerwares {
+			if err := hw.OnPreFire(d.event, d, args...); err != nil {
+				return err
+			}
+		}
+		if isAsync {
+			d.event.wg.Go(func() {
+				d.call.Call(d.callableArgs)
+			})
+		} else {
+			d.call.Call(d.callableArgs)
+		}
+		for _, hw := range d.event.handlerwares {
+			if err := hw.OnPostFire(d.event, d, args...); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
-func (h *nAryHandler) getCallable() reflect.Value {
-	return h.callable
-}
-
-func (h *nAryHandler) isOnce() bool {
-	return h.subscriptionFlags&SubscriptionOnce == SubscriptionOnce
-}
-
-func (h *nAryHandler) isAsync() bool {
-	return h.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
+func (h *nAryHandler) callable() reflect.Value {
+	return h.call
 }
 
 type SubscriptionModifier func(*SubscriptionFlag)

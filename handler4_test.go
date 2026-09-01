@@ -16,13 +16,13 @@ func TestHandler4(t *testing.T) {
 		return nil
 	}
 
-	h, err := newHandler4[int, int, int, int](callback)
+	h, err := newHandler4[int, int, int, int](&E4[int, int, int, int]{}, callback)
 	assert.NoError(t, err)
 	assert.IsType(t, &handler4[int, int, int, int]{}, h)
-	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.getCallable().Pointer())
+	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.callable().Pointer())
 
 	h.apply4(1, 2, 3, 4)
 	h.apply(1, 2, 3, 4)
 
-	assert.Error(t, h.apply(), "expected error; requires exactly 1 argument")
+	assert.Error(t, h.apply(), "expected error; requires exactly 4 argument")
 }

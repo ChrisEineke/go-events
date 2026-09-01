@@ -13,13 +13,12 @@ func TestHandler1(t *testing.T) {
 		return nil
 	}
 
-	h, err := newHandler1[int](callback)
+	h, err := newHandler1[int](&E1[int]{}, callback)
 	assert.NoError(t, err)
 	assert.IsType(t, &handler1[int]{}, h)
-	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.getCallable().Pointer())
+	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.callable().Pointer())
 
 	h.apply1(1)
-	h.apply(1)
 
 	assert.Error(t, h.apply(), "expected error; requires exactly 1 argument")
 }

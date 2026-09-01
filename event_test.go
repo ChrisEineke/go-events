@@ -12,14 +12,14 @@ func TestEventHasHandlers(t *testing.T) {
 	e := E{}
 	assert.Equal(t, e.HasHandlers(), false, "there should be no Handlers")
 
-	e.On(func() {})
+	e.On(func() error { return nil })
 	assert.Equal(t, e.HasHandlers(), true, "there should be a Handlers")
 }
 
 func TestEventOn(t *testing.T) {
 	e := E{}
 
-	err := e.On(func() {})
+	err := e.On(func() error { return nil })
 	assert.NoError(t, err)
 
 	err = e.On("String")
@@ -28,8 +28,8 @@ func TestEventOn(t *testing.T) {
 
 func TestEventOff(t *testing.T) {
 	e := E{}
-	callable1 := func() {}
-	callable2 := func() {}
+	callable1 := func() error { return nil }
+	callable2 := func() error { return nil }
 
 	err := e.On(callable1)
 	assert.NoError(t, err)
@@ -53,11 +53,11 @@ func TestEventOff(t *testing.T) {
 
 func TestEventFire(t *testing.T) {
 	e := E{}
-	e.On(func(a int, err error) {
+	e.On(func(a int) error {
 		assert.Equal(t, 10, a)
-		assert.NoError(t, err)
+		return nil
 	})
-	e.Fire(10, nil)
+	e.Fire(10)
 }
 
 type testware struct {
@@ -73,21 +73,21 @@ type testware struct {
 	onAllPostFireCalled int
 }
 
-func (t *testware) OnUse(Event) error                      { t.onUseCalled++; return nil }
-func (t *testware) OnDisuse(Event) error                   { t.onDisuseCalled++; return nil }
-func (t *testware) OnSubscribe(Event, Handler) error       { t.onSubscribeCalled++; return nil }
-func (t *testware) OnUnsubscribe(Event, Handler) error     { t.onUnsubscribeCalled++; return nil }
-func (t *testware) OnAllPreFire(Event, []any) error        { t.onAllPreFireCalled++; return nil }
-func (t *testware) OnPreFire(Event, Handler, []any) error  { t.onPreFireCalled++; return nil }
-func (t *testware) OnPostFire(Event, Handler, []any) error { t.onPostFireCalled++; return nil }
-func (t *testware) OnAllPostFire(Event, []any) error       { t.onAllPostFireCalled++; return nil }
+func (t *testware) OnUse(EventSource) error                       { t.onUseCalled++; return nil }
+func (t *testware) OnDisuse(EventSource) error                    { t.onDisuseCalled++; return nil }
+func (t *testware) OnSubscribe(EventSource, Handler) error        { t.onSubscribeCalled++; return nil }
+func (t *testware) OnUnsubscribe(EventSource, Handler) error      { t.onUnsubscribeCalled++; return nil }
+func (t *testware) OnAllPreFire(EventSource, ...any) error        { t.onAllPreFireCalled++; return nil }
+func (t *testware) OnPreFire(EventSource, Handler, ...any) error  { t.onPreFireCalled++; return nil }
+func (t *testware) OnPostFire(EventSource, Handler, ...any) error { t.onPostFireCalled++; return nil }
+func (t *testware) OnAllPostFire(EventSource, ...any) error       { t.onAllPostFireCalled++; return nil }
 
 var _ Handlerware = (*testware)(nil)
 
 func TestEventFireWithHandlerware(t *testing.T) {
 	e := E{}
 	tw := &testware{}
-	callable := func() {}
+	callable := func() error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -117,7 +117,7 @@ func TestEventFireWithHandlerware(t *testing.T) {
 func TestEventFireAsyncWithHandlerware(t *testing.T) {
 	e := E{}
 	tw := &testware{}
-	callable := func() {}
+	callable := func() error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -148,7 +148,7 @@ func TestEventFireAsyncWithHandlerware(t *testing.T) {
 func TestEventOnOnceAndManyOn(t *testing.T) {
 	e := E{}
 	flag := 0
-	fn := func() { flag += 1 }
+	fn := func() error { flag += 1; return nil }
 	e.On(fn, Once())
 	e.On(fn)
 	e.On(fn)
@@ -161,9 +161,9 @@ func TestEventManyOnOnce(t *testing.T) {
 	e := E{}
 	var flags [3]byte
 
-	e.On(func() { flags[0]++ }, Once())
-	e.On(func() { flags[1]++ }, Once())
-	e.On(func() { flags[2]++ })
+	e.On(func() error { flags[0]++; return nil }, Once())
+	e.On(func() error { flags[1]++; return nil }, Once())
+	e.On(func() error { flags[2]++; return nil })
 
 	e.Fire()
 	e.Fire()
@@ -173,7 +173,7 @@ func TestEventManyOnOnce(t *testing.T) {
 
 func TestEventOnOffFunction(t *testing.T) {
 	e := E{}
-	handler := func() {}
+	handler := func() error { return nil }
 
 	e.On(handler)
 	err := e.Off(handler)
@@ -187,8 +187,9 @@ type testHandler struct {
 	val int
 }
 
-func (h *testHandler) Handle() {
+func (h *testHandler) Handle() error {
 	h.val++
+	return nil
 }
 
 func TestEventOnOffReceiver(t *testing.T) {
@@ -210,8 +211,9 @@ func TestEventOnOffReceiver(t *testing.T) {
 
 func TestEventOnOnceAsync(t *testing.T) {
 	e := E{}
-	e.On(func(a int, out *[]int) {
+	e.On(func(a int, out *[]int) error {
 		*out = append(*out, a)
+		return nil
 	}, Once(), Async())
 
 	results := []int{}
@@ -225,10 +227,11 @@ func TestEventOnOnceAsync(t *testing.T) {
 
 func TestEventOnAsync(t *testing.T) {
 	e := E{}
-	e.On(func(a int, out chan<- int) {
+	e.On(func(a int, out chan<- int) error {
 		assert.Equal(t, 1, a)
 		out <- a
 		close(out)
+		return nil
 	}, Async())
 
 	results := make(chan int, 1)
@@ -249,8 +252,9 @@ func TestEventOnAsync(t *testing.T) {
 
 func TestEventHandlerArgsMismatch(t *testing.T) {
 	e := E{}
-	e.On(func(a int) {
+	e.On(func(a int) error {
 		assert.Equal(t, 1, a)
+		return nil
 	})
 	e.Fire(1, 2)
 }
@@ -258,7 +262,7 @@ func TestEventHandlerArgsMismatch(t *testing.T) {
 func BenchmarkEventFireNoArgs(b *testing.B) {
 	e := E{}
 	timesCalled := 0
-	handler := func() { timesCalled++ }
+	handler := func() error { timesCalled++; return nil }
 	e.On(handler)
 	for b.Loop() {
 		e.Fire()
@@ -270,7 +274,7 @@ func BenchmarkEventFireNoArgs(b *testing.B) {
 func BenchmarkEventFireIntArg(b *testing.B) {
 	e := E{}
 	timesCalled := 0
-	handler := func(_ int) { timesCalled++ }
+	handler := func(_ int) error { timesCalled++; return nil }
 	e.On(handler)
 	for b.Loop() {
 		e.Fire(b.N)
@@ -282,7 +286,7 @@ func BenchmarkEventFireIntArg(b *testing.B) {
 func BenchmarkEventFireIntIntArg(b *testing.B) {
 	e := E{}
 	timesCalled := 0
-	handler := func(_, _ int) { timesCalled++ }
+	handler := func(_, _ int) error { timesCalled++; return nil }
 	e.On(handler)
 	for b.Loop() {
 		e.Fire(b.N, b.N)

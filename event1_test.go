@@ -12,24 +12,21 @@ func TestEvent1HasHandlers(t *testing.T) {
 	e := E1[int]{}
 	assert.Equal(t, e.HasHandlers(), false, "there should be no Handlers")
 
-	e.On(func(arg1 int) {})
+	e.On(func(arg1 int) error { return nil })
 	assert.Equal(t, e.HasHandlers(), true, "there should be a Handlers")
 }
 
 func TestEvent1On(t *testing.T) {
 	e := E1[int]{}
 
-	err := e.On(func(arg1 int) {})
+	err := e.On(func(arg1 int) error { return nil })
 	assert.NoError(t, err)
-
-	err = e.On("String")
-	assert.Error(t, err)
 }
 
 func TestEvent1Off(t *testing.T) {
 	e := E1[int]{}
-	callable1 := func(arg1 int) {}
-	callable2 := func(arg1 int) {}
+	callable1 := func(arg1 int) error { return nil }
+	callable2 := func(arg1 int) error { return nil }
 
 	err := e.On(callable1)
 	assert.NoError(t, err)
@@ -53,16 +50,18 @@ func TestEvent1Off(t *testing.T) {
 
 func TestEvent1Fire(t *testing.T) {
 	e := E1[int]{}
-	e.On(func(arg1 int) {
+	e.On(func(arg1 int) error {
 		assert.Equal(t, 1, arg1)
+		return nil
 	})
 	e.Fire(1)
 }
 
 func TestEvent1Fire1(t *testing.T) {
 	e := E1[int]{}
-	e.On(func(a int) {
+	e.On(func(a int) error {
 		assert.Equal(t, 1, a)
+		return nil
 	})
 	e.Fire1(1)
 }
@@ -70,7 +69,7 @@ func TestEvent1Fire1(t *testing.T) {
 func TestEvent1Fire1WithHandlerware(t *testing.T) {
 	e := E1[int]{}
 	tw := &testware{}
-	callable := func(arg1 int) {}
+	callable := func(arg1 int) error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -100,7 +99,7 @@ func TestEvent1Fire1WithHandlerware(t *testing.T) {
 func TestEvent1Fire1AsyncWithHandlerware(t *testing.T) {
 	e := E1[int]{}
 	tw := &testware{}
-	callable := func(arg1 int) {}
+	callable := func(arg1 int) error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -131,7 +130,7 @@ func TestEvent1Fire1AsyncWithHandlerware(t *testing.T) {
 func TestEvent1OnOnceAndManyOn(t *testing.T) {
 	e := E1[int]{}
 	flag := 0
-	fn := func(arg1 int) { flag += 1 }
+	fn := func(arg1 int) error { flag += 1; return nil }
 	e.On(fn, Once())
 	e.On(fn)
 	e.On(fn)
@@ -144,9 +143,9 @@ func TestEvent1ManyOnOnce(t *testing.T) {
 	e := E1[int]{}
 	var flags [3]byte
 
-	e.On(func(arg1 int) { flags[0]++ }, Once())
-	e.On(func(arg1 int) { flags[1]++ }, Once())
-	e.On(func(arg1 int) { flags[2]++ })
+	e.On(func(arg1 int) error { flags[0]++; return nil }, Once())
+	e.On(func(arg1 int) error { flags[1]++; return nil }, Once())
+	e.On(func(arg1 int) error { flags[2]++; return nil })
 
 	e.Fire1(1)
 	e.Fire1(1)
@@ -156,7 +155,7 @@ func TestEvent1ManyOnOnce(t *testing.T) {
 
 func TestEvent1OnOffFunction(t *testing.T) {
 	e := E1[int]{}
-	handler := func(arg1 int) {}
+	handler := func(arg1 int) error { return nil }
 
 	e.On(handler)
 	err := e.Off(handler)
@@ -170,8 +169,9 @@ type testHandler1 struct {
 	val int
 }
 
-func (h *testHandler1) Handle(arg1 int) {
+func (h *testHandler1) Handle(arg1 int) error {
 	h.val++
+	return nil
 }
 
 func TestEvent1OnOffReceiver(t *testing.T) {
@@ -193,8 +193,9 @@ func TestEvent1OnOffReceiver(t *testing.T) {
 
 func TestEvent1OnOnceAsync(t *testing.T) {
 	e := E1[*[]int]{}
-	e.On(func(out *[]int) {
+	e.On(func(out *[]int) error {
 		*out = append(*out, 1)
+		return nil
 	}, Once(), Async())
 
 	results := []int{}
@@ -208,9 +209,10 @@ func TestEvent1OnOnceAsync(t *testing.T) {
 
 func TestEvent1OnAsync(t *testing.T) {
 	e := E1[chan<- int]{}
-	e.On(func(out chan<- int) {
+	e.On(func(out chan<- int) error {
 		out <- 1
 		close(out)
+		return nil
 	}, Async())
 
 	results := make(chan int, 2)
@@ -232,7 +234,7 @@ func TestEvent1OnAsync(t *testing.T) {
 func BenchmarkEvent1FireIntArg(b *testing.B) {
 	e := E1[int]{}
 	timesCalled := 0
-	handler := func(_ int) { timesCalled++ }
+	handler := func(_ int) error { timesCalled++; return nil }
 	e.On(handler)
 	for b.Loop() {
 		e.Fire1(b.N)

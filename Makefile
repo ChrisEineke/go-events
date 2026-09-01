@@ -13,7 +13,6 @@ test: build
 vet:
 	@go vet ./...
 
-
 coverage:
 	@go tool cover -html=coverage.out
 

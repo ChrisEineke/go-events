@@ -6,7 +6,7 @@ import (
 )
 
 type Registration[T any] struct {
-	event Event
+	event EventSource
 	data  T
 }
 
@@ -34,7 +34,7 @@ func (r *Registry[T]) Get(name EventName) (*Registration[T], error) {
 	return reg, nil
 }
 
-func (r *Registry[T]) Put(e Event, data T) error {
+func (r *Registry[T]) Put(e EventSource, data T) error {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 
@@ -55,7 +55,7 @@ func (r *Registry[T]) Put(e Event, data T) error {
 	return nil
 }
 
-func (r *Registry[T]) Delete(e Event) (T, error) {
+func (r *Registry[T]) Delete(e EventSource) (T, error) {
 	r.registryLock.Lock()
 	defer r.registryLock.Unlock()
 

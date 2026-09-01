@@ -18,10 +18,11 @@ func TestEventFireContext(t *testing.T) {
 	e := E{N: "testEvent"}
 	e.Use(StrictContextWare)
 	numHandlersCalled := 0
-	firstHandler := func(ctx context.Context, a int) {
+	firstHandler := func(ctx context.Context, a int) error {
 		assert.NotNil(t, ctx)
 		assert.Equal(t, 10, a)
 		numHandlersCalled++
+		return nil
 	}
 	e.On(firstHandler)
 
@@ -40,29 +41,31 @@ func TestEventFireContextWithDeadline(t *testing.T) {
 	e := E{N: "testEvent"}
 	e.Use(StrictContextWare)
 	numHandlersCalled := 0
-	firstHandler := func(ctx context.Context, a int) {
+	firstHandler := func(ctx context.Context, a int) error {
 		assert.NotNil(t, ctx)
 		assert.Equal(t, 10, a)
 		numHandlersCalled++
+		return nil
 	}
 	e.On(firstHandler)
-	secondHandler := func(ctx context.Context, a int) {
+	secondHandler := func(ctx context.Context, a int) error {
 		assert.NotNil(t, ctx)
 		assert.Equal(t, 10, a)
 		time.Sleep(100 * time.Millisecond)
 		numHandlersCalled++
+		return nil
 	}
 	e.On(secondHandler)
-	thirdHandler := func(ctx context.Context, a int) {
+	thirdHandler := func(ctx context.Context, a int) error {
 		assert.Fail(t, "shouldn't be reachable because the previous handler exceeded the deadline")
+		return nil
 	}
 	e.On(thirdHandler)
 
 	ctx := context.Background()
 	ctx, cancelFn := context.WithDeadline(ctx, time.Now().Add(50*time.Millisecond))
 	defer cancelFn()
-	err := e.Fire(ctx, 10)
-	assert.Error(t, err, "Fire should return an error because of missing Context arg")
+	e.Fire(ctx, 10)
 	assert.Equal(t, 2, numHandlersCalled, "expected exactly 2 handlers to be called")
 
 	e.Off(thirdHandler)
@@ -80,9 +83,10 @@ func TestEventFireNoArg(t *testing.T) {
 func TestEventFireNoContext(t *testing.T) {
 	e := E{N: "testEvent"}
 	e.Use(NewStrictContextWare())
-	e.On(func(ctx context.Context, a int) {
+	e.On(func(ctx context.Context, a int) error {
 		assert.NotNil(t, ctx)
 		assert.Equal(t, 10, a)
+		return nil
 	})
 	assert.Error(t, e.Fire(10, nil), "Fire should return an error because of missing Context arg")
 }
@@ -90,13 +94,13 @@ func TestEventFireNoContext(t *testing.T) {
 func TestEventFireNoContextInHandler(t *testing.T) {
 	e := E{N: "testEvent"}
 	e.Use(NewStrictContextWare())
-	err := e.On(func(a int) {})
+	err := e.On(func(a int) error { return nil })
 	assert.Error(t, err, "On should return an error because of missing Context arg")
 }
 
 func TestEventFireNoContextInExistingHandler(t *testing.T) {
 	e := E{N: "testEvent"}
-	e.On(func(a int) {})
+	e.On(func(a int) error { return nil })
 	err := e.Use(NewStrictContextWare())
 	assert.Error(t, err, "Use should return an error because of missing Context arg in an existing handler")
 }

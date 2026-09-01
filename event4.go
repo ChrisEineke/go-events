@@ -12,7 +12,7 @@ type Event4[T1, T2, T3, T4 any] interface {
 	// registered with. If a Handler's function signature contains more parameters than provided arguments, zero values
 	// will be filled in. If a Handler's function contains less parameters than provided arguments, the Handler will
 	// be invoked will less arguments.
-	Fire4(arg1 T1, arg2 T2, T3, any T3) error
+	Fire4(T1, T2, T3, T4) error
 	// HasHandlers returns true if at least one Handler is registered, false otherwise.
 	HasHandlers() bool
 	// Use adds the Handlerware to this Event.
@@ -20,9 +20,9 @@ type Event4[T1, T2, T3, T4 any] interface {
 	// Disuse emoves the Handlerware from this Event.
 	Disuse(Handlerware) error
 	// On registers the given callable with the given modifiers. Returns an error if the callable is not a function.
-	On(callable any, options ...SubscriptionModifier) error
+	On(callable Callable4[T1, T2, T3, T4], options ...SubscriptionModifier) error
 	// Off cancels the given callable. Returns an error if the callable is not subscribed to this Event.
-	Off(callable any) error
+	Off(callable Callable4[T1, T2, T3, T4]) error
 	// WaitAsync waits for all registered async handlers of this Event to complete.
 	WaitAsync()
 }
@@ -30,8 +30,8 @@ type Event4[T1, T2, T3, T4 any] interface {
 // E4 is a an Event whose HandlerS receive exactly four arguments of the Event's generic types.
 type E4[T1, T2, T3, T4 any] struct {
 	N                EventName
-	handlers         []Handler4[T1, T2, T3, T4]
-	handlersToRemove []Handler4[T1, T2, T3, T4]
+	handlers         []*handler4[T1, T2, T3, T4]
+	handlersToRemove []*handler4[T1, T2, T3, T4]
 	handlerwares     []Handlerware
 	lock             sync.RWMutex
 	wg               sync.WaitGroup
@@ -45,80 +45,33 @@ func (e *E4[T1, T2, T3, T4]) Fire4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) error {
 	e.lock.RLock()
 	defer e.lock.RUnlock()
 
-	if len(e.handlerwares) == 0 {
-		for _, handler := range e.handlers {
-			if handler.isOnce() {
-				e.handlersToRemove = append(e.handlersToRemove, handler)
-			}
-			if !handler.isAsync() {
-				handler.apply4(arg1, arg2, arg3, arg4)
-			} else {
-				e.wg.Go(func() {
-					handler.apply4(arg1, arg2, arg3, arg4)
-				})
-			}
-		}
-		if len(e.handlersToRemove) > 0 {
-			for _, handler := range e.handlersToRemove {
-				e.removeCallable(handler.getCallable())
-			}
-			e.handlersToRemove = e.handlersToRemove[:0]
-		}
-	} else {
-		args := []any{arg1, arg2, arg3, arg4}
-
-		for _, hw := range e.handlerwares {
-			if err := hw.OnAllPreFire(e, args); err != nil {
-				return err
-			}
-		}
-		for _, handler := range e.handlers {
-			if handler.isOnce() {
-				e.handlersToRemove = append(e.handlersToRemove, handler)
-			}
-			if !handler.isAsync() {
-				for _, hw := range e.handlerwares {
-					if err := hw.OnPreFire(e, handler.(Handler), args); err != nil {
-						return err
-					}
-				}
-				handler.apply4(arg1, arg2, arg3, arg4)
-				for _, hw := range e.handlerwares {
-					if err := hw.OnPostFire(e, handler.(Handler), args); err != nil {
-						return err
-					}
-				}
-			} else {
-				e.wg.Go(func() {
-					for _, hw := range e.handlerwares {
-						_ = hw.OnPreFire(e, handler.(Handler), args)
-					}
-					handler.apply4(arg1, arg2, arg3, arg4)
-					for _, hw := range e.handlerwares {
-						_ = hw.OnPostFire(e, handler.(Handler), args)
-					}
-				})
-			}
-		}
-		if len(e.handlersToRemove) > 0 {
-			for _, handler := range e.handlersToRemove {
-				e.removeCallable(handler.getCallable())
-			}
-			e.handlersToRemove = e.handlersToRemove[:0]
-		}
-		for _, hw := range e.handlerwares {
-			if err := hw.OnAllPostFire(e, args); err != nil {
-				return err
-			}
+	for _, hw := range e.handlerwares {
+		if err := hw.OnAllPreFire(e, arg1, arg2, arg3, arg4); err != nil {
+			return err
 		}
 	}
+	for _, handler := range e.handlers {
+		handler.apply4(arg1, arg2, arg3, arg4)
+	}
+	for _, hw := range e.handlerwares {
+		if err := hw.OnAllPostFire(e, arg1, arg2, arg3, arg4); err != nil {
+			return err
+		}
+	}
+	if len(e.handlersToRemove) > 0 {
+		for _, handler := range e.handlersToRemove {
+			e.removeCallable(handler.callable())
+		}
+		e.handlersToRemove = e.handlersToRemove[:0]
+	}
+
 	return nil
 }
 
-func (e *E4[T1, T2, T3, T4]) removeCallable(h reflect.Value) (Handler4[T1, T2, T3, T4], error) {
-	var result Handler4[T1, T2, T3, T4]
-	e.handlers = slices.DeleteFunc(e.handlers, func(it Handler4[T1, T2, T3, T4]) bool {
-		if it.getCallable().Pointer() == h.Pointer() {
+func (e *E4[T1, T2, T3, T4]) removeCallable(h reflect.Value) (*handler4[T1, T2, T3, T4], error) {
+	var result *handler4[T1, T2, T3, T4]
+	e.handlers = slices.DeleteFunc(e.handlers, func(it *handler4[T1, T2, T3, T4]) bool {
+		if it.callable().Pointer() == h.Pointer() {
 			if result != nil {
 				return false
 			}
@@ -169,24 +122,24 @@ func (e *E4[T1, T2, T3, T4]) Disuse(hw Handlerware) error {
 	return nil
 }
 
-func (e *E4[T1, T2, T3, T4]) On(callable any, options ...SubscriptionModifier) error {
+func (e *E4[T1, T2, T3, T4]) On(callable Callable4[T1, T2, T3, T4], options ...SubscriptionModifier) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	handler, err := newHandler4[T1, T2, T3, T4](callable, options...)
+	handler, err := newHandler4(e, callable, options...)
 	if err != nil {
 		return err
 	}
 	e.handlers = append(e.handlers, handler)
 	for _, hw := range e.handlerwares {
-		if err := hw.OnSubscribe(e, handler.(Handler)); err != nil {
+		if err := hw.OnSubscribe(e, handler); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (e *E4[T1, T2, T3, T4]) Off(callable any) error {
+func (e *E4[T1, T2, T3, T4]) Off(callable Callable4[T1, T2, T3, T4]) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -199,7 +152,7 @@ func (e *E4[T1, T2, T3, T4]) Off(callable any) error {
 		return fmt.Errorf("function %v is not subscribed to event %w", callable, err)
 	}
 	for _, hw := range e.handlerwares {
-		hw.OnUnsubscribe(e, handler.(Handler))
+		hw.OnUnsubscribe(e, handler)
 	}
 	return nil
 }
@@ -215,10 +168,10 @@ func (e *E4[T1, T2, T3, T4]) Name() EventName {
 func (e *E4[T1, T2, T3, T4]) Handlers() []Handler {
 	var result []Handler
 	for _, handler := range e.handlers {
-		result = append(result, handler.(Handler))
+		result = append(result, handler)
 	}
 	return result
 }
 
+var _ EventSource = (*E4[any, any, any, any])(nil)
 var _ Event4[any, any, any, any] = (*E4[any, any, any, any])(nil)
-var _ Event = (*E4[any, any, any, any])(nil)

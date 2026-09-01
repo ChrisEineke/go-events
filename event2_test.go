@@ -12,24 +12,21 @@ func TestEvent2HasHandlers(t *testing.T) {
 	e := E2[int, int]{}
 	assert.Equal(t, e.HasHandlers(), false, "there should be no Handlers")
 
-	e.On(func(arg1, arg2 int) {})
+	e.On(func(arg1, arg2 int) error { return nil })
 	assert.Equal(t, e.HasHandlers(), true, "there should be a Handlers")
 }
 
 func TestEvent2On(t *testing.T) {
 	e := E2[int, int]{}
 
-	err := e.On(func(arg1, arg2 int) {})
+	err := e.On(func(arg1, arg2 int) error { return nil })
 	assert.NoError(t, err)
-
-	err = e.On("String")
-	assert.Error(t, err)
 }
 
 func TestEvent2Off(t *testing.T) {
 	e := E2[int, int]{}
-	callable1 := func(arg1, arg2 int) {}
-	callable2 := func(arg1, arg2 int) {}
+	callable1 := func(arg1, arg2 int) error { return nil }
+	callable2 := func(arg1, arg2 int) error { return nil }
 
 	err := e.On(callable1)
 	assert.NoError(t, err)
@@ -53,18 +50,20 @@ func TestEvent2Off(t *testing.T) {
 
 func TestEvent2Fire(t *testing.T) {
 	e := E2[int, int]{}
-	e.On(func(arg1, arg2 int) {
+	e.On(func(arg1, arg2 int) error {
 		assert.Equal(t, 1, arg1)
 		assert.Equal(t, 2, arg2)
+		return nil
 	})
 	e.Fire(1, 2)
 }
 
 func TestEvent2Fire2(t *testing.T) {
 	e := E2[int, int]{}
-	e.On(func(arg1, arg2 int) {
+	e.On(func(arg1, arg2 int) error {
 		assert.Equal(t, 1, arg1)
 		assert.Equal(t, 2, arg2)
+		return nil
 	})
 	e.Fire2(1, 2)
 }
@@ -72,7 +71,7 @@ func TestEvent2Fire2(t *testing.T) {
 func TestEvent2Fire2WithHandlerware(t *testing.T) {
 	e := E2[int, int]{}
 	tw := &testware{}
-	callable := func(arg1, arg2 int) {}
+	callable := func(arg1, arg2 int) error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -102,7 +101,7 @@ func TestEvent2Fire2WithHandlerware(t *testing.T) {
 func TestEvent2Fire2AsyncWithHandlerware(t *testing.T) {
 	e := E2[int, int]{}
 	tw := &testware{}
-	callable := func(arg1, arg2 int) {}
+	callable := func(arg1, arg2 int) error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -133,7 +132,7 @@ func TestEvent2Fire2AsyncWithHandlerware(t *testing.T) {
 func TestEvent2OnOnceAndManyOn(t *testing.T) {
 	e := E2[int, int]{}
 	flag := 0
-	fn := func(arg1, arg2 int) { flag += 1 }
+	fn := func(arg1, arg2 int) error { flag += 1; return nil }
 	e.On(fn, Once())
 	e.On(fn)
 	e.On(fn)
@@ -146,9 +145,9 @@ func TestEvent2ManyOnOnce(t *testing.T) {
 	e := E2[int, int]{}
 	var flags [3]byte
 
-	e.On(func(arg1, arg2 int) { flags[0]++ }, Once())
-	e.On(func(arg1, arg2 int) { flags[1]++ }, Once())
-	e.On(func(arg1, arg2 int) { flags[2]++ })
+	e.On(func(arg1, arg2 int) error { flags[0]++; return nil }, Once())
+	e.On(func(arg1, arg2 int) error { flags[1]++; return nil }, Once())
+	e.On(func(arg1, arg2 int) error { flags[2]++; return nil })
 
 	e.Fire2(1, 2)
 	e.Fire2(1, 2)
@@ -158,7 +157,7 @@ func TestEvent2ManyOnOnce(t *testing.T) {
 
 func TestEvent2OnOffFunction(t *testing.T) {
 	e := E2[int, int]{}
-	handler := func(arg1, arg2 int) {}
+	handler := func(arg1, arg2 int) error { return nil }
 
 	e.On(handler)
 	err := e.Off(handler)
@@ -172,8 +171,9 @@ type testHandler2 struct {
 	val int
 }
 
-func (h *testHandler2) Handle(arg1, arg2 int) {
+func (h *testHandler2) Handle(arg1, arg2 int) error {
 	h.val++
+	return nil
 }
 
 func TestEvent2OnOffReceiver(t *testing.T) {
@@ -195,9 +195,10 @@ func TestEvent2OnOffReceiver(t *testing.T) {
 
 func TestEvent2OnOnceAsync(t *testing.T) {
 	e := E2[*[]int, *[]int]{}
-	e.On(func(out1, out2 *[]int) {
+	e.On(func(out1, out2 *[]int) error {
 		*out1 = append(*out1, 1)
 		*out2 = append(*out2, 2)
+		return nil
 	}, Once(), Async())
 
 	results1 := []int{}
@@ -213,11 +214,12 @@ func TestEvent2OnOnceAsync(t *testing.T) {
 
 func TestEvent2OnAsync(t *testing.T) {
 	e := E2[chan<- int, chan<- int]{}
-	e.On(func(out1, out2 chan<- int) {
+	e.On(func(out1, out2 chan<- int) error {
 		out1 <- 1
 		close(out1)
 		out2 <- 2
 		close(out2)
+		return nil
 	}, Async())
 
 	results1 := make(chan int, 1)
@@ -243,7 +245,7 @@ func TestEvent2OnAsync(t *testing.T) {
 func BenchmarkEvent2FireIntIntArg(b *testing.B) {
 	e := E2[int, int]{}
 	timesCalled := 0
-	handler := func(_, _ int) { timesCalled++ }
+	handler := func(_, _ int) error { timesCalled++; return nil }
 	e.On(handler)
 	for b.Loop() {
 		e.Fire2(b.N, b.N)

@@ -7,29 +7,15 @@ import (
 )
 
 type Callable4[T1, T2, T3, T4 any] = func(T1, T2, T3, T4) error
-type Callable4NoError[T1, T2, T3, T4 any] = func(T1, T2, T3, T4)
 
-type Handler4[T1, T2, T3, T4 any] interface {
-	// apply invokes the callable with the given arguments. This variant of apply tries to match as many arguments of
-	// the event payload to the parameter list of the callable (in order as fired only). The callable will not be
-	// invoked with more parameters than it supports. If the callable has too many arguments, the remaining parameters
-	// will be invoked with the parameters' zero values.
-	apply(args ...any) error
+type Applicable4[T1, T2, T3, T4 any] interface {
 	// apply4 invokes the callable with the exact argument(s).
 	apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) error
-	// getCallable returns the callable Value.
-	getCallable() reflect.Value
-	// isOnce returns whether or not this Handler is to be invoked only once and then removed from the handler list.
-	isOnce() bool
-	// isOnce returns whether or not this Handler is to be invoked asynchronously.
-	isAsync() bool
 }
 
 type handler4[T1, T2, T3, T4 any] struct {
-	// callable is the object that will be invoked.
-	callable      Callable4[T1, T2, T3, T4]
-	callableValue reflect.Value
-	// mutex ensures that the callable is only ever invoked sequentially.
+	event             *E4[T1, T2, T3, T4]
+	call              Callable4[T1, T2, T3, T4]
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -45,37 +31,50 @@ func (h *handler4[T1, T2, T3, T4]) apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) er
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 
-	return h.callable(arg1, arg2, arg3, arg4)
-}
+	isOnce := h.subscriptionFlags&SubscriptionOnce != 0
+	isAsync := h.subscriptionFlags&SubscriptionAsync != 0
 
-func (h *handler4[T1, T2, T3, T4]) getCallable() reflect.Value {
-	return h.callableValue
-}
-
-func (h *handler4[T1, T2, T3, T4]) isOnce() bool {
-	return h.subscriptionFlags&SubscriptionOnce == SubscriptionOnce
-}
-
-func (h *handler4[T1, T2, T3, T4]) isAsync() bool {
-	return h.subscriptionFlags&SubscriptionAsync == SubscriptionAsync
-}
-
-func newHandler4[T1, T2, T3, T4 any](callable any, options ...SubscriptionModifier) (Handler4[T1, T2, T3, T4], error) {
-	var specificCallable Callable4[T1, T2, T3, T4]
-	switch v := callable.(type) {
-	case Callable4[T1, T2, T3, T4]:
-		specificCallable = v
-	case Callable4NoError[T1, T2, T3, T4]:
-		specificCallable = func(arg1 T1, arg2 T2, arg3 T3, arg4 T4) error {
-			v(arg1, arg2, arg3, arg4)
-			return nil
-		}
-	default:
-		return nil, fmt.Errorf("The callable's parameter list doesn't match the event's generic type list: %v", reflect.TypeOf(callable))
+	if isOnce {
+		h.event.handlersToRemove = append(h.event.handlersToRemove, h)
 	}
+	if len(h.event.handlerwares) == 0 {
+		if isAsync {
+			h.event.wg.Go(func() {
+				h.call(arg1, arg2, arg3, arg4)
+			})
+		} else {
+			h.call(arg1, arg2, arg3, arg4)
+		}
+	} else {
+		for _, hw := range h.event.handlerwares {
+			if err := hw.OnPreFire(h.event, h, arg1, arg2, arg3, arg4); err != nil {
+				return err
+			}
+		}
+		if isAsync {
+			h.event.wg.Go(func() {
+				h.call(arg1, arg2, arg3, arg4)
+			})
+		} else {
+			h.call(arg1, arg2, arg3, arg4)
+		}
+		for _, hw := range h.event.handlerwares {
+			if err := hw.OnPostFire(h.event, h, arg1, arg2, arg3, arg4); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (h *handler4[T1, T2, T3, T4]) callable() reflect.Value {
+	return reflect.ValueOf(h.call)
+}
+
+func newHandler4[T1, T2, T3, T4 any](event *E4[T1, T2, T3, T4], callable Callable4[T1, T2, T3, T4], options ...SubscriptionModifier) (*handler4[T1, T2, T3, T4], error) {
 	h := &handler4[T1, T2, T3, T4]{
-		callable:          specificCallable,
-		callableValue:     reflect.ValueOf(callable),
+		event:             event,
+		call:              callable,
 		mutex:             sync.Mutex{},
 		subscriptionFlags: 0,
 	}
@@ -85,5 +84,5 @@ func newHandler4[T1, T2, T3, T4 any](callable any, options ...SubscriptionModifi
 	return h, nil
 }
 
-var _ Handler4[any, any, any, any] = (*handler4[any, any, any, any])(nil)
+var _ Applicable4[any, any, any, any] = (*handler4[any, any, any, any])(nil)
 var _ Handler = (*handler4[any, any, any, any])(nil)

@@ -24,10 +24,10 @@ func NewStrictContextWare() *StrictContextWare {
 	return &StrictContextWare{registry: NewRegistry[context.Context]()}
 }
 
-func (s *StrictContextWare) OnUse(e Event) error {
+func (s *StrictContextWare) OnUse(e EventSource) error {
 	var err error
 	for _, handler := range e.Handlers() {
-		err = s.ensureCallableFirstArgIsContext(handler.getCallable())
+		err = s.ensureCallableFirstArgIsContext(handler.callable())
 		if err != nil {
 			break
 		}
@@ -35,19 +35,19 @@ func (s *StrictContextWare) OnUse(e Event) error {
 	return err
 }
 
-func (s *StrictContextWare) OnDisuse(e Event) error {
+func (s *StrictContextWare) OnDisuse(e EventSource) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnSubscribe(e Event, h Handler) error {
-	return s.ensureCallableFirstArgIsContext(h.getCallable())
+func (s *StrictContextWare) OnSubscribe(e EventSource, h Handler) error {
+	return s.ensureCallableFirstArgIsContext(h.callable())
 }
 
-func (s *StrictContextWare) OnUnsubscribe(e Event, h Handler) error {
+func (s *StrictContextWare) OnUnsubscribe(e EventSource, h Handler) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnAllPreFire(e Event, args []any) error {
+func (s *StrictContextWare) OnAllPreFire(e EventSource, args ...any) error {
 	if len(args) == 0 {
 		return fmt.Errorf("event payload must contain at least 1 arg (a Context)")
 	}
@@ -58,7 +58,7 @@ func (s *StrictContextWare) OnAllPreFire(e Event, args []any) error {
 	return s.registry.Put(e, c)
 }
 
-func (s *StrictContextWare) OnPreFire(e Event, h Handler, args []any) error {
+func (s *StrictContextWare) OnPreFire(e EventSource, h Handler, args ...any) error {
 	reg, _ := s.registry.Get(e.Name())
 	select {
 	case <-reg.data.Done():
@@ -69,7 +69,7 @@ func (s *StrictContextWare) OnPreFire(e Event, h Handler, args []any) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnPostFire(e Event, h Handler, args []any) error {
+func (s *StrictContextWare) OnPostFire(e EventSource, h Handler, args ...any) error {
 	reg, _ := s.registry.Get(e.Name())
 	select {
 	case <-reg.data.Done():
@@ -80,7 +80,7 @@ func (s *StrictContextWare) OnPostFire(e Event, h Handler, args []any) error {
 	return nil
 }
 
-func (s *StrictContextWare) OnAllPostFire(e Event, args []any) error {
+func (s *StrictContextWare) OnAllPostFire(e EventSource, args ...any) error {
 	_, err := s.registry.Delete(e)
 	return err
 }
