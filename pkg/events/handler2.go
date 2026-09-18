@@ -6,16 +6,16 @@ import (
 	"sync"
 )
 
-type Callable2[T1, T2 any] = func(T1, T2) error
+type Func2[T1, T2 any] = func(T1, T2) error
 
 type Applicable2[T1, T2 any] interface {
-	// apply2 invokes the callable with the exact argument(s).
+	// apply2 invokes the function with the exact argument(s).
 	apply2(arg1 T1, arg2 T2) error
 }
 
 type handler2[T1, T2 any] struct {
 	event             *E2[T1, T2]
-	call              Callable2[T1, T2]
+	fn                Func2[T1, T2]
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -40,10 +40,10 @@ func (h *handler2[T1, T2]) apply2(arg1 T1, arg2 T2) error {
 	if len(h.event.handlerwares) == 0 {
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1, arg2)
+				h.fn(arg1, arg2)
 			})
 		} else {
-			h.call(arg1, arg2)
+			h.fn(arg1, arg2)
 		}
 	} else {
 		for _, hw := range h.event.handlerwares {
@@ -53,10 +53,10 @@ func (h *handler2[T1, T2]) apply2(arg1 T1, arg2 T2) error {
 		}
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1, arg2)
+				h.fn(arg1, arg2)
 			})
 		} else {
-			h.call(arg1, arg2)
+			h.fn(arg1, arg2)
 		}
 		for _, hw := range h.event.handlerwares {
 			if err := hw.OnPostFire(h.event, h, arg1, arg2); err != nil {
@@ -67,14 +67,14 @@ func (h *handler2[T1, T2]) apply2(arg1 T1, arg2 T2) error {
 	return nil
 }
 
-func (h *handler2[T1, T2]) callable() reflect.Value {
-	return reflect.ValueOf(h.call)
+func (h *handler2[T1, T2]) funcValue() reflect.Value {
+	return reflect.ValueOf(h.fn)
 }
 
-func newHandler2[T1, T2 any](event *E2[T1, T2], callable Callable2[T1, T2], options ...SubscriptionModifier) (*handler2[T1, T2], error) {
+func newHandler2[T1, T2 any](event *E2[T1, T2], fn Func2[T1, T2], options ...SubscriptionModifier) (*handler2[T1, T2], error) {
 	h := &handler2[T1, T2]{
 		event:             event,
-		call:              callable,
+		fn:                fn,
 		mutex:             sync.Mutex{},
 		subscriptionFlags: 0,
 	}

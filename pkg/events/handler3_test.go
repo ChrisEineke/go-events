@@ -8,17 +8,17 @@ import (
 )
 
 func TestHandler3(t *testing.T) {
-	callback := func(arg1, arg2, arg3 int) error {
+	fn := func(arg1, arg2, arg3 int) error {
 		assert.Equal(t, 1, arg1)
 		assert.Equal(t, 2, arg2)
 		assert.Equal(t, 3, arg3)
 		return nil
 	}
 
-	h, err := newHandler3[int, int, int](&E3[int, int, int]{}, callback)
+	h, err := newHandler3[int, int, int](&E3[int, int, int]{}, fn)
 	assert.NoError(t, err)
 	assert.IsType(t, &handler3[int, int, int]{}, h)
-	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.callable().Pointer())
+	assert.Equal(t, reflect.ValueOf(fn), h.funcValue())
 
 	h.apply3(1, 2, 3)
 	h.apply(1, 2, 3)

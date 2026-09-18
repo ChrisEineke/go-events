@@ -6,16 +6,16 @@ import (
 	"sync"
 )
 
-type Callable4[T1, T2, T3, T4 any] = func(T1, T2, T3, T4) error
+type Func4[T1, T2, T3, T4 any] = func(T1, T2, T3, T4) error
 
 type Applicable4[T1, T2, T3, T4 any] interface {
-	// apply4 invokes the callable with the exact argument(s).
+	// apply4 invokes the function with the exact argument(s).
 	apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) error
 }
 
 type handler4[T1, T2, T3, T4 any] struct {
 	event             *E4[T1, T2, T3, T4]
-	call              Callable4[T1, T2, T3, T4]
+	fn                Func4[T1, T2, T3, T4]
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -40,10 +40,10 @@ func (h *handler4[T1, T2, T3, T4]) apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) er
 	if len(h.event.handlerwares) == 0 {
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1, arg2, arg3, arg4)
+				h.fn(arg1, arg2, arg3, arg4)
 			})
 		} else {
-			h.call(arg1, arg2, arg3, arg4)
+			h.fn(arg1, arg2, arg3, arg4)
 		}
 	} else {
 		for _, hw := range h.event.handlerwares {
@@ -53,10 +53,10 @@ func (h *handler4[T1, T2, T3, T4]) apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) er
 		}
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1, arg2, arg3, arg4)
+				h.fn(arg1, arg2, arg3, arg4)
 			})
 		} else {
-			h.call(arg1, arg2, arg3, arg4)
+			h.fn(arg1, arg2, arg3, arg4)
 		}
 		for _, hw := range h.event.handlerwares {
 			if err := hw.OnPostFire(h.event, h, arg1, arg2, arg3, arg4); err != nil {
@@ -67,14 +67,14 @@ func (h *handler4[T1, T2, T3, T4]) apply4(arg1 T1, arg2 T2, arg3 T3, arg4 T4) er
 	return nil
 }
 
-func (h *handler4[T1, T2, T3, T4]) callable() reflect.Value {
-	return reflect.ValueOf(h.call)
+func (h *handler4[T1, T2, T3, T4]) funcValue() reflect.Value {
+	return reflect.ValueOf(h.fn)
 }
 
-func newHandler4[T1, T2, T3, T4 any](event *E4[T1, T2, T3, T4], callable Callable4[T1, T2, T3, T4], options ...SubscriptionModifier) (*handler4[T1, T2, T3, T4], error) {
+func newHandler4[T1, T2, T3, T4 any](event *E4[T1, T2, T3, T4], fn Func4[T1, T2, T3, T4], options ...SubscriptionModifier) (*handler4[T1, T2, T3, T4], error) {
 	h := &handler4[T1, T2, T3, T4]{
 		event:             event,
-		call:              callable,
+		fn:                fn,
 		mutex:             sync.Mutex{},
 		subscriptionFlags: 0,
 	}

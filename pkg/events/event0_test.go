@@ -25,26 +25,26 @@ func TestEvent0On(t *testing.T) {
 
 func TestEvent0Off(t *testing.T) {
 	e := E0{}
-	callable1 := func() error { return nil }
-	callable2 := func() error { return nil }
+	fn1 := func() error { return nil }
+	fn2 := func() error { return nil }
 
-	err := e.On(callable1)
+	err := e.On(fn1)
 	assert.NoError(t, err)
-	err = e.On(callable2)
+	err = e.On(fn2)
 	assert.NoError(t, err)
-	err = e.On(callable2)
-	assert.NoError(t, err)
-
-	err = e.Off(callable1)
-	assert.NoError(t, err)
-	err = e.Off(callable2)
-	assert.NoError(t, err)
-	err = e.Off(callable2)
+	err = e.On(fn2)
 	assert.NoError(t, err)
 
-	err = e.Off(callable1)
+	err = e.Off(fn1)
+	assert.NoError(t, err)
+	err = e.Off(fn2)
+	assert.NoError(t, err)
+	err = e.Off(fn2)
+	assert.NoError(t, err)
+
+	err = e.Off(fn1)
 	assert.Error(t, err)
-	err = e.Off(callable2)
+	err = e.Off(fn2)
 	assert.Error(t, err)
 }
 
@@ -67,7 +67,7 @@ func TestEvent0Fire0(t *testing.T) {
 func TestEvent0Fire0WithHandlerware(t *testing.T) {
 	e := E0{}
 	tw := &testware{}
-	callable := func() error { return nil }
+	fn := func() error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -78,8 +78,8 @@ func TestEvent0Fire0WithHandlerware(t *testing.T) {
 	assert.Equal(t, 0, tw.onPostFireCalled, "OnPostFire shouldn't be called since there are no Handlers")
 	assert.Equal(t, 1, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
 
-	e.On(callable)
-	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every callable attached to the Event")
+	e.On(fn)
+	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every function attached to the Event")
 
 	e.Fire0()
 	assert.Equal(t, 2, tw.onAllPreFireCalled, "OnAllPreFire should be called once even if there are no Handlers")
@@ -87,8 +87,8 @@ func TestEvent0Fire0WithHandlerware(t *testing.T) {
 	assert.Equal(t, 1, tw.onPostFireCalled, "OnPostFire should be called for every Handler")
 	assert.Equal(t, 2, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
 
-	e.Off(callable)
-	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every callable detached from the Event")
+	e.Off(fn)
+	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every function detached from the Event")
 
 	e.Disuse(tw)
 	assert.Equal(t, 1, tw.onDisuseCalled)
@@ -97,7 +97,7 @@ func TestEvent0Fire0WithHandlerware(t *testing.T) {
 func TestEvent0Fire0AsyncWithHandlerware(t *testing.T) {
 	e := E0{}
 	tw := &testware{}
-	callable := func() error { return nil }
+	fn := func() error { return nil }
 
 	e.Use(tw)
 	assert.Equal(t, 1, tw.onUseCalled)
@@ -108,8 +108,8 @@ func TestEvent0Fire0AsyncWithHandlerware(t *testing.T) {
 	assert.Equal(t, 0, tw.onPostFireCalled, "OnPostFire shouldn't be called since there are no Handlers")
 	assert.Equal(t, 1, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
 
-	e.On(callable, Async())
-	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every callable attached to the Event")
+	e.On(fn, Async())
+	assert.Equal(t, 1, tw.onSubscribeCalled, "OnSubscribe should be called once for every function attached to the Event")
 
 	e.Fire0()
 	e.WaitAsync()
@@ -118,8 +118,8 @@ func TestEvent0Fire0AsyncWithHandlerware(t *testing.T) {
 	assert.Equal(t, 1, tw.onPostFireCalled, "OnPostFire should be called for every Handler")
 	assert.Equal(t, 2, tw.onAllPostFireCalled, "OnAllPostFire should be called once even if there are no Handlers")
 
-	e.Off(callable)
-	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every callable detached from the Event")
+	e.Off(fn)
+	assert.Equal(t, 1, tw.onUnsubscribeCalled, "OnUnsubscribe should be called once for every function detached from the Event")
 
 	e.Disuse(tw)
 	assert.Equal(t, 1, tw.onDisuseCalled)

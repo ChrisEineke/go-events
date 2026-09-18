@@ -27,7 +27,7 @@ func NewStrictContextWare() *StrictContextWare {
 func (s *StrictContextWare) OnUse(e EventSource) error {
 	var err error
 	for _, handler := range e.Handlers() {
-		err = s.ensureCallableFirstArgIsContext(handler.callable())
+		err = s.ensureFunctionFirstArgIsContext(handler.funcValue())
 		if err != nil {
 			break
 		}
@@ -40,7 +40,7 @@ func (s *StrictContextWare) OnDisuse(e EventSource) error {
 }
 
 func (s *StrictContextWare) OnSubscribe(e EventSource, h Handler) error {
-	return s.ensureCallableFirstArgIsContext(h.callable())
+	return s.ensureFunctionFirstArgIsContext(h.funcValue())
 }
 
 func (s *StrictContextWare) OnUnsubscribe(e EventSource, h Handler) error {
@@ -85,13 +85,13 @@ func (s *StrictContextWare) OnAllPostFire(e EventSource, args ...any) error {
 	return err
 }
 
-func (s *StrictContextWare) ensureCallableFirstArgIsContext(callable reflect.Value) error {
-	callableType := callable.Type()
-	callableNumIn := callableType.NumIn()
-	if callableNumIn < 1 {
+func (s *StrictContextWare) ensureFunctionFirstArgIsContext(v reflect.Value) error {
+	vType := v.Type()
+	vNumIn := vType.NumIn()
+	if vNumIn < 1 {
 		return fmt.Errorf("handler must have at least 1 arg (a Context)")
 	}
-	firstArgType := callableType.In(0)
+	firstArgType := vType.In(0)
 	if firstArgType != reflect.TypeFor[context.Context]() {
 		return fmt.Errorf("handler's first arg is not a Context")
 	}

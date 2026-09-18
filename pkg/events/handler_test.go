@@ -8,28 +8,28 @@ import (
 )
 
 func TestNullaryHandler(t *testing.T) {
-	callback := func() error { return nil }
+	fn := func() error { return nil }
 
-	h, err := newHandler(&E{}, callback)
+	h, err := newHandler(&E{}, fn)
 	assert.NoError(t, err)
 	assert.IsType(t, &nullaryHandler{}, h)
 
-	assert.Equal(t, reflect.ValueOf(callback).Pointer(), h.callable().Pointer())
+	assert.Equal(t, reflect.ValueOf(fn), h.funcValue())
 }
 
 func TestNAryHandler(t *testing.T) {
-	callback1 := func(a int) error { return nil }
-	callback2 := func(a, b int) error { return nil }
+	fn1 := func(a int) error { return nil }
+	fn2 := func(a, b int) error { return nil }
 
-	h1, err := newHandler(&E{}, callback1)
+	h1, err := newHandler(&E{}, fn1)
 	assert.NoError(t, err)
 	assert.IsType(t, &nAryHandler{}, h1)
 
-	assert.Equal(t, reflect.ValueOf(callback1).Pointer(), h1.callable().Pointer())
+	assert.Equal(t, reflect.ValueOf(fn1), h1.funcValue())
 
-	h2, err := newHandler(&E{}, callback2)
+	h2, err := newHandler(&E{}, fn2)
 	assert.NoError(t, err)
 	assert.IsType(t, &nAryHandler{}, h2)
 
-	assert.Equal(t, reflect.ValueOf(callback2).Pointer(), h2.callable().Pointer())
+	assert.Equal(t, reflect.ValueOf(fn2), h2.funcValue())
 }

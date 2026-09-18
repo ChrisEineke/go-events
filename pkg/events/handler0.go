@@ -6,16 +6,16 @@ import (
 	"sync"
 )
 
-type Callable0 = func() error
+type Func0 = func() error
 
 type Applicable0 interface {
-	// apply0 invokes the callable with no payload.
+	// apply0 invokes the function with no payload.
 	apply0() error
 }
 
 type handler0 struct {
 	event             *E0
-	call              Callable0
+	fn                Func0
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -40,10 +40,10 @@ func (h *handler0) apply0() error {
 	if len(h.event.handlerwares) == 0 {
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call()
+				h.fn()
 			})
 		} else {
-			h.call()
+			h.fn()
 		}
 	} else {
 		for _, hw := range h.event.handlerwares {
@@ -53,10 +53,10 @@ func (h *handler0) apply0() error {
 		}
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call()
+				h.fn()
 			})
 		} else {
-			h.call()
+			h.fn()
 		}
 		for _, hw := range h.event.handlerwares {
 			if err := hw.OnPostFire(h.event, h); err != nil {
@@ -67,14 +67,14 @@ func (h *handler0) apply0() error {
 	return nil
 }
 
-func (h *handler0) callable() reflect.Value {
-	return reflect.ValueOf(h.call)
+func (h *handler0) funcValue() reflect.Value {
+	return reflect.ValueOf(h.fn)
 }
 
-func newHandler0(event *E0, callable Callable0, options ...SubscriptionModifier) (*handler0, error) {
+func newHandler0(event *E0, fn Func0, options ...SubscriptionModifier) (*handler0, error) {
 	h := &handler0{
 		event:             event,
-		call:              callable,
+		fn:                fn,
 		mutex:             sync.Mutex{},
 		subscriptionFlags: 0,
 	}

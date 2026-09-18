@@ -6,16 +6,16 @@ import (
 	"sync"
 )
 
-type Callable1[T1 any] = func(T1) error
+type Func1[T1 any] = func(T1) error
 
 type Applicable1[T1 any] interface {
-	// apply1 invokes the callable with the given payload.
+	// apply1 invokes the function with the given payload.
 	apply1(arg1 T1) error
 }
 
 type handler1[T1 any] struct {
 	event             *E1[T1]
-	call              Callable1[T1]
+	fn                Func1[T1]
 	mutex             sync.Mutex
 	subscriptionFlags SubscriptionFlag
 }
@@ -40,10 +40,10 @@ func (h *handler1[T1]) apply1(arg1 T1) error {
 	if len(h.event.handlerwares) == 0 {
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1)
+				h.fn(arg1)
 			})
 		} else {
-			h.call(arg1)
+			h.fn(arg1)
 		}
 	} else {
 		for _, hw := range h.event.handlerwares {
@@ -53,10 +53,10 @@ func (h *handler1[T1]) apply1(arg1 T1) error {
 		}
 		if isAsync {
 			h.event.wg.Go(func() {
-				h.call(arg1)
+				h.fn(arg1)
 			})
 		} else {
-			h.call(arg1)
+			h.fn(arg1)
 		}
 		for _, hw := range h.event.handlerwares {
 			if err := hw.OnPostFire(h.event, h, arg1); err != nil {
@@ -67,14 +67,14 @@ func (h *handler1[T1]) apply1(arg1 T1) error {
 	return nil
 }
 
-func (h *handler1[T1]) callable() reflect.Value {
-	return reflect.ValueOf(h.call)
+func (h *handler1[T1]) funcValue() reflect.Value {
+	return reflect.ValueOf(h.fn)
 }
 
-func newHandler1[T1 any](event *E1[T1], callable Callable1[T1], options ...SubscriptionModifier) (*handler1[T1], error) {
+func newHandler1[T1 any](event *E1[T1], fn Func1[T1], options ...SubscriptionModifier) (*handler1[T1], error) {
 	h := &handler1[T1]{
 		event:             event,
-		call:              callable,
+		fn:                fn,
 		mutex:             sync.Mutex{},
 		subscriptionFlags: 0,
 	}

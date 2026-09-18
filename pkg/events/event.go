@@ -31,11 +31,11 @@ type Event interface {
 	// Disuse removes the Handlerware from this Event.
 	Disuse(Handlerware) error
 
-	// On registers the given callable with the given modifiers. Returns an error if the callable is not a function.
-	On(callable any, options ...SubscriptionModifier) error
+	// On registers the given function with the given modifiers. Returns an error if the function is not a function.
+	On(fn any, options ...SubscriptionModifier) error
 
-	// Off cancels the given callable. Returns an error if the callable is not subscribed to this Event.
-	Off(callable any) error
+	// Off cancels the given function. Returns an error if the function is not subscribed to this Event.
+	Off(fn any) error
 
 	// WaitAsync waits for all registered async Handlers of this Event to complete.
 	WaitAsync()
@@ -80,7 +80,7 @@ func (e *E) Fire(args ...any) error {
 	}
 	if len(e.handlersToRemove) > 0 {
 		for _, handler := range e.handlersToRemove {
-			e.removeCallable(handler.callable())
+			e.removeHandlerByFuncValue(handler.funcValue())
 		}
 		e.handlersToRemove = e.handlersToRemove[:0]
 	}
@@ -117,11 +117,11 @@ func (e *E) Disuse(hw Handlerware) error {
 	return nil
 }
 
-func (e *E) On(callable any, options ...SubscriptionModifier) error {
+func (e *E) On(fn any, options ...SubscriptionModifier) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	handler, err := newHandler(e, callable, options...)
+	handler, err := newHandler(e, fn, options...)
 	if err != nil {
 		return err
 	}
@@ -134,17 +134,16 @@ func (e *E) On(callable any, options ...SubscriptionModifier) error {
 	return nil
 }
 
-func (e *E) Off(callable any) error {
+func (e *E) Off(fn any) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
 	if len(e.handlers) == 0 {
 		return ErrNoHandlers
 	}
-	value := reflect.ValueOf(callable)
-	handler, err := e.removeCallable(value)
+	handler, err := e.removeHandlerByFuncValue(reflect.ValueOf(fn))
 	if err != nil {
-		return fmt.Errorf("function %v is not subscribed to event %w", callable, err)
+		return fmt.Errorf("function %v is not subscribed to event %w", fn, err)
 	}
 	for _, hw := range e.handlerwares {
 		hw.OnUnsubscribe(e, handler)
@@ -168,10 +167,10 @@ func (e *E) Handlers() []Handler {
 	return e.handlers
 }
 
-func (e *E) removeCallable(h reflect.Value) (Handler, error) {
+func (e *E) removeHandlerByFuncValue(h reflect.Value) (Handler, error) {
 	var result Handler
 	e.handlers = slices.DeleteFunc(e.handlers, func(it Handler) bool {
-		if it.callable().Pointer() == h.Pointer() {
+		if it.funcValue().Pointer() == h.Pointer() {
 			if result != nil {
 				return false
 			}
