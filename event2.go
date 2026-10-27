@@ -7,54 +7,48 @@ import (
 	"sync"
 )
 
-type Event3[T1, T2, T3 any] interface {
+type Event2[T1, T2 any] interface {
 	// Fire dispatches the given payload(s) to all subscribed handlers taking into account the modifiers that they were
 	// registered with. If a Handler's function signature contains more parameters than provided arguments, zero values
 	// will be filled in. If a Handler's function contains less parameters than provided arguments, the Handler will
 	// be invoked will less arguments.
-	Fire3(arg1 T1, arg2 T2, any T3) error
-	// HasHandlers returns true if at least one Handler is registered, false otherwise.
-	HasHandlers() bool
-	// Use adds the Handlerware to this Event.
-	Use(Handlerware) error
-	// Disuse emoves the Handlerware from this Event.
-	Disuse(Handlerware) error
+	Fire2(arg1 T1, arg2 T2) error
+
 	// On registers the given function with the given modifiers. Returns an error if the function is not a function.
-	On(fn Func3[T1, T2, T3], options ...SubscriptionModifier) error
+	On(fn Func2[T1, T2], options ...SubscriptionModifier) error
+
 	// Off cancels the given function. Returns an error if the function is not subscribed to this Event.
-	Off(fn Func3[T1, T2, T3]) error
-	// WaitAsync waits for all registered async handlers of this Event to complete.
-	WaitAsync()
+	Off(fn Func2[T1, T2]) error
 }
 
-// E3 is a an Event whose HandlerS receive exactly three arguments of the Event's generic types.
-type E3[T1, T2, T3 any] struct {
+// E2 is a an Event whose HandlerS receive exactly two arguments of the Event's generic types.
+type E2[T1, T2 any] struct {
 	N                EventName
-	handlers         []*handler3[T1, T2, T3]
-	handlersToRemove []*handler3[T1, T2, T3]
+	handlers         []*handler2[T1, T2]
+	handlersToRemove []*handler2[T1, T2]
 	handlerwares     []Handlerware
 	lock             sync.Mutex
 	wg               sync.WaitGroup
 }
 
-func (e *E3[T1, T2, T3]) Fire(args ...any) error {
-	return e.Fire3(args[0].(T1), args[1].(T2), args[2].(T3))
+func (e *E2[T1, T2]) Fire(args ...any) error {
+	return e.Fire2(args[0].(T1), args[1].(T2))
 }
 
-func (e *E3[T1, T2, T3]) Fire3(arg1 T1, arg2 T2, arg3 T3) error {
+func (e *E2[T1, T2]) Fire2(arg1 T1, arg2 T2) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
 	for _, hw := range e.handlerwares {
-		if err := hw.OnAllPreFire(e, arg1, arg2, arg3); err != nil {
+		if err := hw.OnAllPreFire(e, arg1, arg2); err != nil {
 			return err
 		}
 	}
 	for _, handler := range e.handlers {
-		handler.apply3(arg1, arg2, arg3)
+		handler.apply2(arg1, arg2)
 	}
 	for _, hw := range e.handlerwares {
-		if err := hw.OnAllPostFire(e, arg1, arg2, arg3); err != nil {
+		if err := hw.OnAllPostFire(e, arg1, arg2); err != nil {
 			return err
 		}
 	}
@@ -68,9 +62,9 @@ func (e *E3[T1, T2, T3]) Fire3(arg1 T1, arg2 T2, arg3 T3) error {
 	return nil
 }
 
-func (e *E3[T1, T2, T3]) removeHandlerByFuncValue(v reflect.Value) (*handler3[T1, T2, T3], error) {
-	var result *handler3[T1, T2, T3]
-	e.handlers = slices.DeleteFunc(e.handlers, func(it *handler3[T1, T2, T3]) bool {
+func (e *E2[T1, T2]) removeHandlerByFuncValue(v reflect.Value) (*handler2[T1, T2], error) {
+	var result *handler2[T1, T2]
+	e.handlers = slices.DeleteFunc(e.handlers, func(it *handler2[T1, T2]) bool {
 		if it.funcValue().Pointer() == v.Pointer() {
 			if result != nil {
 				return false
@@ -86,14 +80,14 @@ func (e *E3[T1, T2, T3]) removeHandlerByFuncValue(v reflect.Value) (*handler3[T1
 	return result, nil
 }
 
-func (e *E3[T1, T2, T3]) HasHandlers() bool {
+func (e *E2[T1, T2]) HasHandlers() bool {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
 	return len(e.handlers) > 0
 }
 
-func (e *E3[T1, T2, T3]) Use(hw Handlerware) error {
+func (e *E2[T1, T2]) Use(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -101,7 +95,7 @@ func (e *E3[T1, T2, T3]) Use(hw Handlerware) error {
 	return hw.OnUse(e)
 }
 
-func (e *E3[T1, T2, T3]) Disuse(hw Handlerware) error {
+func (e *E2[T1, T2]) Disuse(hw Handlerware) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -122,11 +116,11 @@ func (e *E3[T1, T2, T3]) Disuse(hw Handlerware) error {
 	return nil
 }
 
-func (e *E3[T1, T2, T3]) On(fn Func3[T1, T2, T3], options ...SubscriptionModifier) error {
+func (e *E2[T1, T2]) On(fn Func2[T1, T2], options ...SubscriptionModifier) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
-	handler, err := newHandler3(e, fn, options...)
+	handler, err := newHandler2(e, fn, options...)
 	if err != nil {
 		return err
 	}
@@ -139,7 +133,7 @@ func (e *E3[T1, T2, T3]) On(fn Func3[T1, T2, T3], options ...SubscriptionModifie
 	return nil
 }
 
-func (e *E3[T1, T2, T3]) Off(fn Func3[T1, T2, T3]) error {
+func (e *E2[T1, T2]) Off(fn Func2[T1, T2]) error {
 	e.lock.Lock()
 	defer e.lock.Unlock()
 
@@ -156,15 +150,15 @@ func (e *E3[T1, T2, T3]) Off(fn Func3[T1, T2, T3]) error {
 	return nil
 }
 
-func (e *E3[T1, T2, T3]) WaitAsync() {
+func (e *E2[T1, T2]) WaitAsync() {
 	e.wg.Wait()
 }
 
-func (e *E3[T1, T2, T3]) Name() EventName {
+func (e *E2[T1, T2]) Name() EventName {
 	return e.N
 }
 
-func (e *E3[T1, T2, T3]) Handlers() []Handler {
+func (e *E2[T1, T2]) Handlers() []Handler {
 	var result []Handler
 	for _, handler := range e.handlers {
 		result = append(result, handler)
@@ -172,5 +166,5 @@ func (e *E3[T1, T2, T3]) Handlers() []Handler {
 	return result
 }
 
-var _ EventSource = (*E3[any, any, any])(nil)
-var _ Event3[any, any, any] = (*E3[any, any, any])(nil)
+var _ EventSource = (*E2[any, any])(nil)
+var _ Event2[any, any] = (*E2[any, any])(nil)

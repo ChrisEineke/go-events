@@ -1,6 +1,6 @@
 # go-events
 
-[![GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events/pkg/events?status.svg)](https://godoc.org/codeberg.org/ChrisEineke/go-events/pkg/events)
+[![GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events?status.svg)](https://godoc.org/codeberg.org/ChrisEineke/go-events)
 [![Build Status](https://travis-ci.org/ChrisEineke/go-events.svg)](https://travis-ci.org/ChrisEineke/go-events)
 
 ## Overview
@@ -25,12 +25,12 @@ go get codeberg.org/ChrisEineke/go-events@latest
 Then add the following import statement to your code file(s):
 
 ```go
-import "codeberg.org/ChrisEineke/go-events/pkg/events"
+import "codeberg.org/ChrisEineke/go-events"
 ```
 
 ## Documentation
 
-See [GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events/pkg/events).
+See [GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events).
 
 ## Examples
 

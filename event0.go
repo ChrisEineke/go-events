@@ -13,18 +13,12 @@ type Event0 interface {
 	// will be filled in. If a Handler's function contains less parameters than provided arguments, the Handler will
 	// be invoked will less arguments.
 	Fire0() error
-	// HasHandlers returns true if at least one Handler is registered, false otherwise.
-	HasHandlers() bool
-	// Use adds the Handlerware to this Event.
-	Use(Handlerware) error
-	// Disuse emoves the Handlerware from this Event.
-	Disuse(Handlerware) error
+
 	// On registers the given function with the given modifiers. Returns an error if the function is not a function.
 	On(fn Func0, options ...SubscriptionModifier) error
+
 	// Off cancels the given function. Returns an error if the function is not subscribed to this Event.
 	Off(fn Func0) error
-	// WaitAsync waits for all registered async handlers of this Event to complete.
-	WaitAsync()
 }
 
 // E0 is a an Event whose HandlerS receive exactly zero arguments of the Event's generic type.

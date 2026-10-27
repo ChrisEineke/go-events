@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 
-	"codeberg.org/ChrisEineke/go-events/pkg/events"
+	"codeberg.org/ChrisEineke/go-events"
 )
 
 func main() {

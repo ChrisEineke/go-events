@@ -5,43 +5,34 @@ This guide helps AI agents work with the go-events repository efficiently.
 ## Repository Structure
 
 ```
-go-events/
-├── cmd/           # Application entry points
+go-events/         # Core event library
 ├── docs/          # API documentation
 ├── examples/      # Usage examples
 │   ├── basic/     # Basic event usage
 │   └── e1/        # Generic event type examples
 ├── internal/      # Private implementation details
-├── pkg/
-│   └── events/    # Core event library
-│       ├── event.go           # Base Event interface and E struct (non-generic)
-│       ├── event1.go          # E1 generic event type with 1 type parameter
-│       ├── event2.go          # E2 generic event type with 2 type parameters
-│       ├── event3.go          # E3 generic event type with 3 type parameters
-│       ├── event4.go          # E4 generic event type with 4 type parameters
-│       ├── event_generic.go   # Deprecated reflection-based approach (empty)
-│       ├── event_test.go      # Base event tests
-│       ├── event_utils.go     # Utility functions (stub)
-│       ├── eventsource.go     # EventSource interface (shared by E and E1-E4)
-│       ├── errors.go          # Error types
-│       ├── handler.go         # Common handler infrastructure (nullaryHandler, nAryHandler, SubscriptionModifier)
-│       ├── handler1.go        # Handler1 implementation for E1
-│       ├── handler2.go        # Handler2 implementation for E2
-│       ├── handler3.go        # Handler3 implementation for E3
-│       ├── handler4.go        # Handler4 implementation for E4
-│       ├── handler_test.go    # Handler tests
-│       ├── handlerware.go     # Handlerware interface
-│       ├── handlerware_context.go    # Context handlerware
-│       ├── handlerware_context_test.go # Context handlerware tests
-│       ├── handlerware_logger.go    # Logger handlerware
-│       ├── handlerware_logger_test.go # Logger handlerware tests
-│       ├── handlerware_nilware.go    # Nilware handlerware
-│       ├── nilware_test.go     # Nil handler tests
-│       ├── package.go          # Package declarations (stub)
-│       ├── registry.go         # Event registration (stub)
-│       ├── registry_test.go    # Registration tests (stub)
-│       └── coverage.out        # Test coverage report
-├── scripts/       # Build/test scripts
+├── event1.go          # E1 generic event type with 1 type parameter
+├── event2.go          # E2 generic event type with 2 type parameters
+├── event3.go          # E3 generic event type with 3 type parameters
+├── event4.go          # E4 generic event type with 4 type parameters
+├── eventsource.go     # EventSource interface (shared by E and E1-E4)
+├── errors.go          # Error types
+├── handler.go         # Common handler infrastructure (nullaryHandler, nAryHandler, SubscriptionModifier)
+├── handler1.go        # Handler1 implementation for E1
+├── handler2.go        # Handler2 implementation for E2
+├── handler3.go        # Handler3 implementation for E3
+├── handler4.go        # Handler4 implementation for E4
+├── handlerware.go     # Handlerware interface
+├── handlerware_context.go    # Context handlerware
+├── handlerware_context_test.go # Context handlerware tests
+├── handlerware_logger.go    # Logger handlerware
+├── handlerware_logger_test.go # Logger handlerware tests
+├── handlerware_nilware.go    # Nilware handlerware
+├── nilware_test.go     # Nil handler tests
+├── package.go          # Package declarations (stub)
+├── registry.go         # Event registration (stub)
+├── registry_test.go    # Registration tests (stub)
+└── coverage.out        # Test coverage report
 ├── Makefile       # Build automation
 └── go.mod/go.sum  # Go module definitions
 ```

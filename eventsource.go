@@ -1,6 +1,8 @@
 package events
 
-// EventSource is the interface shared between generic Events (E) and type-specific Events (E1, E2, ...).
+type EventName = string
+
+// EventSource is the interface shared between type-specific Events (E0, E1, E2, ...).
 type EventSource interface {
 	// Name returns the name of the Event.
 	Name() EventName
@@ -11,4 +13,13 @@ type EventSource interface {
 
 	// Handlers returns the Handlers of the Event.
 	Handlers() []Handler
+
+	// Use adds the Handlerware to this Event.
+	Use(Handlerware) error
+
+	// Disuse emoves the Handlerware from this Event.
+	Disuse(Handlerware) error
+
+	// WaitAsync waits for all registered async handlers of this Event to complete.
+	WaitAsync()
 }

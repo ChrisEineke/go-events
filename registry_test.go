@@ -13,27 +13,27 @@ func TestRegistryPut(t *testing.T) {
 	err = registry.Put(nil, 0)
 	assert.Error(t, err, "should've failed to register a nil event")
 
-	err = registry.Put(&E{}, 0)
+	err = registry.Put(&E0{}, 0)
 	assert.Error(t, err, "should've failed to register event with blank name")
 
-	err = registry.Put(&E{N: "testEvent"}, 0)
+	err = registry.Put(&E0{N: "testEvent"}, 0)
 	assert.NoError(t, err, "shouldn't have failed to register a fresh event")
 
-	err = registry.Put(&E{N: "testEvent"}, 1)
+	err = registry.Put(&E0{N: "testEvent"}, 1)
 	assert.Error(t, err, "should've failed to register event with the same name")
 }
 
 func TestRegistryDelete(t *testing.T) {
 	var err error
 	var data int
-	event := &E{N: "testEvent"}
+	event := &E0{N: "testEvent"}
 	registry := NewRegistry[int]()
 
 	data, err = registry.Delete(nil)
 	assert.Error(t, err, "should've failed to register a nil event")
 	assert.Equal(t, 0, data, "data should've been the zero value")
 
-	data, err = registry.Delete(&E{})
+	data, err = registry.Delete(&E0{})
 	assert.Error(t, err, "should've failed to deregister event with blank name")
 	assert.Equal(t, 0, data, "data should've been the zero value")
 
@@ -50,7 +50,7 @@ func TestRegistryDelete(t *testing.T) {
 
 func TestRegistryGet(t *testing.T) {
 	var err error
-	event := &E{N: "testEvent"}
+	event := &E0{N: "testEvent"}
 	registry := NewRegistry[int]()
 
 	err = registry.Put(event, 1)

@@ -1,5 +1,4 @@
 .PHONY := build test vet coverage bench cpubench membench all docs example install clean
-
 .DEFAULT_GOAL := all
 
 all: build test vet
@@ -9,30 +8,30 @@ clean:
 	@rm -rf cmd/*/pkg pkg/internal/*
 
 build:
-	@make -C pkg/events build
+	@go build 
 	@make -C examples build
 
 test:
-	@make -C pkg/events test
+	@gotestsum -f standard-verbose -- -race -coverprofile=coverage.out
 
 vet:
-	@make -C pkg/events vet
+	@go vet ./...
 
-coverage:
-	@make -C pkg/events coverage
+coverage: build
+	@go tool cover -html=coverage.out
 
-bench:
-	@make -C pkg/events bench
+bench: test
+	@go test -bench . -benchtime 3s
 
-cpubench:
-	@make -C pkg/events cpubench
+cpubench: test
+	@go test -bench . -benchtime 3s -cpuprofile=cpu.pprof
 
-membench:
-	@make -C pkg/events membench
+membench: test
+	@go test -bench . -benchtime 3s -memprofile=mem.pprof
 
 install:
-	@go install ./pkg/events
+	@go install .
 
 docs:
 	@echo "Generating documentation..."
-	@go doc ./pkg/events
+	@go doc .
