@@ -1,6 +1,6 @@
 # go-events
 
-[![GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events?status.svg)](https://godoc.org/codeberg.org/ChrisEineke/go-events)
+[![GoDoc](https://godoc.org/github.com/ChrisEineke/go-events?status.svg)](https://godoc.org/github.com/ChrisEineke/go-events)
 [![Build Status](https://travis-ci.org/ChrisEineke/go-events.svg)](https://travis-ci.org/ChrisEineke/go-events)
 
 ## Overview
@@ -19,18 +19,18 @@ Make your code better with [events](https://en.wikipedia.org/wiki/Event-driven_p
 Run the following command in your terminal to add the package to your Go project:
 
 ```
-go get codeberg.org/ChrisEineke/go-events@latest
+go get github.com/ChrisEineke/go-events@latest
 ```
 
 Then add the following import statement to your code file(s):
 
 ```go
-import "codeberg.org/ChrisEineke/go-events"
+import "github.com/ChrisEineke/go-events"
 ```
 
 ## Documentation
 
-See [GoDoc](https://godoc.org/codeberg.org/ChrisEineke/go-events).
+See [GoDoc](https://godoc.org/github.com/ChrisEineke/go-events).
 
 ## Examples
 

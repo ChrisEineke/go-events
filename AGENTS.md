@@ -68,7 +68,7 @@ All generic event types share common features:
 ### Usage Pattern
 
 ```go
-import "codeberg.org/ChrisEineke/go-events/pkg/events"
+import "github.com/ChrisEineke/go-events/pkg/events"
 
 // Create an event with 2 generic type parameters
 e := &events.E2[string, int]{}
